@@ -30,7 +30,7 @@ const MIDI_TO_NOTE = {
   70: 'zla4',
   71: 'si4',
   72: 'do5',
-  73: 'do5',
+  73: 'zdo5',
   74: 're5',
   75: 'zre5',
   76: 'mi5',
