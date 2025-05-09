@@ -7,24 +7,25 @@ class Key extends React.Component {
   };
 
   keyIsPressed = (note) => {
-    return this.props.pressedKeys.includes(note); // Verifica si la nota está presionada
+    return this.props.pressedKeys.includes(note); // Verifica si la nota está presionada, comparando con las teclas activas recibidas como prop
   };
 
   render() {
     const { note } = this.props;
-    const noteIsFlat = this.noteIsFlat(note);
-    const keyIsPressed = this.keyIsPressed(note);
+    const noteIsFlat = this.noteIsFlat(note); // Evalúa si la nota es sostenida o no
+    const keyIsPressed = this.keyIsPressed(note); // Evalúa si la tecla está actualmente presionada
 
     let keyClassName = "key";
     if (noteIsFlat) {
       keyClassName += " flat";
     }
     if (keyIsPressed) {
-      keyClassName += " pressed";
+      keyClassName += " pressed"; // Aplica efecto visual de tecla presionada
     }
 
-    return noteIsFlat ? (
-      <div className={keyClassName}></div>
+    // Renderiza una tecla negra sin texto, o una tecla blanca con la nota visible
+    return noteIsFlat ? ( 
+      <div className={keyClassName}></div> 
     ) : (
       <div className={keyClassName}>
         <div className="key-text">{note.toUpperCase()}</div>
