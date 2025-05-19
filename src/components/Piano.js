@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 // Importación de librerías necesarias y archivos del proyecto
 import _ from 'lodash';
 import React from 'react';
@@ -7,7 +8,14 @@ import {
   NOTES,        // Lista ordenada de las notas musicales (nombres de archivo y etiquetas)
   MIDI_TO_NOTE, // Mapeo de número MIDI → nombre de nota (ej: 60 → 'do4')
 } from '../global/constants';
+=======
+import React from 'react';
 import mqtt from 'mqtt';
+import './Piano.css';
+import { Key } from './Key.js';
+import { NOTES, MIDI_TO_NOTE } from '../global/constants';
+import { Hand } from './Hand.js';
+>>>>>>> Stashed changes
 
 // Este componente representa el piano completo y maneja:
 // - Conexión con un teclado MIDI físico
