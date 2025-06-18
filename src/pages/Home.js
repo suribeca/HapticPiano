@@ -1,13 +1,34 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import './Home.css';
 
 function Home() {
+  const navigate = useNavigate();
+
   return (
-    <div style={{ textAlign: 'center', marginTop: '50px' }}>
-      <h1>🎹 Piano Háptico</h1>
-      <Link to="/demo"><button>Ir a la Demo</button></Link>
-      <br /><br />
-      <Link to="/practica"><button>Practicar Canciones</button></Link>
+    <div className="home">
+      {/* Panel izquierdo: imagen o color de fondo */}
+      <div className="left">
+        {/* Puedes poner aquí un video, animación o imagen */}
+        <img
+          src="/img/pianoplayer1.jpg" // pon tu propia imagen si gustas
+          alt="Joven tocando piano"
+          className="image"
+        />
+      </div>
+
+      {/* Panel derecho: texto + botones */}
+      <div className="right">
+        <h1 className="title">🎹 Piano Háptico</h1>
+        <p className="subtitle">
+          Aquí cualquiera puede practicar a su ritmo, a su estilo 🎧
+        </p>
+
+        <div className="buttons">
+          <button onClick={() => navigate('/practica')}>Comenzar práctica</button>
+          <button onClick={() => navigate('/demo')} className="outline">Explorar demo</button>
+        </div>
+      </div>
     </div>
   );
 }
