@@ -1,6 +1,30 @@
+/* Contenedor general del piano, permite scroll horizontal y ubica los elementos */
+.piano-container {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding-top: 17rem; /* Espacio para la mano no se encime sobre el piano*/
+}
+
+/* Contenedor de teclas */
 .piano {
   display: flex;
-  flex-direction: row;
+  width: max-content; /* Se ajusta al tamaño total de teclas */
+  position: relative;
+  margin-left: 10rem;
+}
+
+/* Contenedor de la mano, centrado horizontalmente */
+.hand-wrapper {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding-top: 1rem;
 }
 
 .pressed-notes {
@@ -10,12 +34,9 @@
   font-weight: bold;
 }
 
-.piano-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.hand-wrapper {
-  margin-bottom: 20px;
+.hand-overlay {
+  position: absolute;
+  top: 0;
+  z-index: 20;
+  transition: left 0.1s ease;
 }
