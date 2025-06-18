@@ -2,48 +2,60 @@
 import _ from 'lodash';
 import React from 'react';
 import './Piano.css'; // Estilos específicos para el componente Piano
-import { Key } from './Key.js'; // Componente visual para representar una tecla
-import { Hand } from './Hand.js';
+import { Key } from './Key.js'; // Componente visual de cada tecla
+import { Hand } from './Hand.js'; // Componente visual de la mano
 import {
-  NOTES,        // Lista ordenada de las notas musicales (nombres de archivo y etiquetas)
-  MIDI_TO_NOTE, // Mapeo de número MIDI → nombre de nota (ej: 60 → 'do4')
+  NOTES,        // Lista completa de notas ('do3', 'zsol4', etc.)
+  MIDI_TO_NOTE, // Mapeo número MIDI → nota legible
 } from '../global/constants';
-import { connectMQTT } from '../services/MqttClient'; // Conexión MQTT
+import { connectMQTT } from '../services/MqttClient'; // Conexión a broker MQTT
 
-// Este componente representa el piano completo
+// Componente principal del piano
 class Piano extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
       pressedNotes: [],
       fingerColors: {
-        thumb: "#cccccc",
-        index: "#cccccc",
-        middle: "#cccccc",
-        ring: "#cccccc",
-        pinky: "#cccccc",
+        thumb: "#ccc",
+        index: "#ccc",
+        middle: "#ccc",
+        ring: "#ccc",
+        pinky: "#ccc"
       }
     };
-  }
-  
-componentDidMount() {
-  if (navigator.requestMIDIAccess) {
-    navigator.requestMIDIAccess().then(this.onMIDISuccess, this.onMIDIFailure);
-  } else {
-    console.warn("Web MIDI API no soportada en este navegador.");
+    // Referencia para centrar visualmente en do4 al cargar
+    this.pianoContainerRef = React.createRef();
   }
 
-  connectMQTT((data) => {
-    console.log("Colores recibidos:", data);
-    this.setState({ fingerColors: data });
-  });
-}
-  // Callback MQTT: actualiza los colores al recibir datos del broker
-  handleMQTTMessage = (data) => {
-    this.setState({ fingerColors: data });
-  };
+  // Se ejecuta cuando el componente se monta
+  componentDidMount() {
+    // Conecta al dispositivo MIDI si está disponible
+    if (navigator.requestMIDIAccess) {
+      navigator.requestMIDIAccess().then(this.onMIDISuccess, this.onMIDIFailure);
+    } else {
+      console.warn("Web MIDI API no soportada en este navegador.");
+    }
 
+    // Escucha datos MQTT para actualizar colores de dedos
+    connectMQTT((data) => {
+      console.log("Colores recibidos:", data);
+      this.setState({ fingerColors: data });
+    });
 
+    // Centra visualmente el piano en la tecla do4
+    setTimeout(() => {
+      const container = this.pianoContainerRef.current;
+      const do4Key = document.getElementById('do4');
+      if (container && do4Key) {
+        const containerWidth = container.offsetWidth;
+        const keyOffset = do4Key.offsetLeft + (do4Key.offsetWidth / 2);
+        container.scrollLeft = keyOffset - containerWidth / 2;
+      }
+    }, 300);
+  }
+
+  // Conexión exitosa a un dispositivo MIDI
   onMIDISuccess = (midiAccess) => {
     for (let input of midiAccess.inputs.values()) {
       console.log("Dispositivo MIDI conectado:", input.name);
@@ -51,10 +63,12 @@ componentDidMount() {
     }
   };
 
+  // Fallo al conectar a MIDI
   onMIDIFailure = () => {
     console.error("No se pudo acceder a dispositivos MIDI.");
   }
 
+  // Maneja cada mensaje MIDI recibido
   handleMIDIMessage = ({ data }) => {
     const [status, noteNumber, velocity] = data;
     const NOTE_ON = 144;
@@ -78,27 +92,48 @@ componentDidMount() {
         pressedNotes: prev.pressedNotes.filter((note) => note !== noteName),
       }));
     }
-  }
+  };
 
+  // Reproduce el archivo de audio correspondiente a la nota
   playNote = (note) => {
-    const audioElement = document.getElementById(note);
+    // Corrección específica para La, La# y Si (que suenan una octava abajo) aún no sabemos pq jeje
+    const match = note.match(/^(la|zla|si)(\d)$/);
+    let notaCorregida = note;
+
+    if (match) {
+      const [, base, octava] = match;
+      const nuevaOctava = parseInt(octava) + 1;
+      notaCorregida = `${base}${nuevaOctava}`;
+    }
+
+    const audioElement = document.getElementById(notaCorregida);
     if (!audioElement) {
-      console.warn(`No se encontró el archivo de audio para: ${note}`);
+      console.warn(`No se encontró el archivo de audio para: ${notaCorregida}`);
       return;
     }
+
     const noteAudio = new Audio(audioElement.src);
     noteAudio.play();
-  }
+  };
 
   render() {
+    // Filtra las notas que serán visualizadas (hasta do6 inclusive)
+    const VISIBLE_NOTES = NOTES.filter(note => {
+      const match = note.match(/\d$/);
+      return match && parseInt(match[0]) <= 6;
+    });
+
     return (
-      <div className="piano-container">
+      <div className="piano-container" ref={this.pianoContainerRef}>
+
+        {/* Mano centrada en pantalla */}
         <div className="hand-wrapper">
           <Hand fingerColors={this.state.fingerColors} />
         </div>
 
+        {/* Visualización horizontal del teclado */}
         <div className="piano">
-          {NOTES.map((note, index) => (
+          {VISIBLE_NOTES.map((note, index) => (
             <Key
               key={index}
               note={note}
@@ -107,6 +142,7 @@ componentDidMount() {
           ))}
         </div>
 
+        {/* Elementos de audio ocultos para TODAS las notas */}
         <div>
           {NOTES.map((note, index) => (
             <audio
@@ -122,4 +158,3 @@ componentDidMount() {
 }
 
 export { Piano };
-// Exporta el componente Piano para que pueda ser usado desde App.js
