@@ -1,32 +1,75 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import './Practica.css'; // Importa estilos específicos
 
 function Practica() {
-  const [cancion, setCancion] = useState('');
-  const [dificultad, setDificultad] = useState('');
+  const [selectedSong, setSelectedSong] = useState('');
+  const [selectedLevel, setSelectedLevel] = useState('');
+  const [showError, setShowError] = useState(false);
+  const navigate = useNavigate();
 
-  const iniciarPractica = () => {
-    alert(`Practicando "${cancion}" con dificultad "${dificultad}"`);
+  const handleStart = () => {
+    if (!selectedSong || !selectedLevel) {
+      setShowError(true);
+      return;
+    }
+    // Si todo bien, ir al demo
+    navigate('/demo');
   };
 
   return (
-    <div style={{ textAlign: 'center', marginTop: '50px' }}>
-      <h2>🎵 Selecciona una canción</h2>
-      <select onChange={(e) => setCancion(e.target.value)}>
-        <option value="">-- Canciones --</option>
-        <option value="Twinkle Twinkle">Twinkle Twinkle</option>
-        <option value="Ode to Joy">Ode to Joy</option>
-      </select>
+    <div className="practica-container">
+      <h2 className="titulo">Selecciona qué deseas practicar</h2>
 
-      <h2>🎚️ Dificultad</h2>
-      <select onChange={(e) => setDificultad(e.target.value)}>
-        <option value="">-- Dificultad --</option>
-        <option value="Fácil">Fácil</option>
-        <option value="Media">Media</option>
-        <option value="Difícil">Difícil</option>
-      </select>
+      {/* Canciones */}
+      <div className="opciones-grid">
+        <button
+          className={`opcion ${selectedSong === 'twinkle' ? 'seleccionado' : ''}`}
+          onClick={() => { setSelectedSong('twinkle'); setShowError(false); }}
+        >
+          🎵 Twinkle Twinkle
+        </button>
+        <button
+          className={`opcion ${selectedSong === 'ode' ? 'seleccionado' : ''}`}
+          onClick={() => { setSelectedSong('ode'); setShowError(false); }}
+        >
+          🎶 Ode to Joy
+        </button>
+      </div>
 
-      <br /><br />
-      <button onClick={iniciarPractica}>Comenzar práctica</button>
+      <h2 className="titulo">Dificultad</h2>
+
+      {/* Dificultades */}
+      <div className="opciones-grid">
+        <button
+          className={`opcion ${selectedLevel === 'facil' ? 'seleccionado' : ''}`}
+          onClick={() => { setSelectedLevel('facil'); setShowError(false); }}
+        >
+          🐣 Fácil
+        </button>
+        <button
+          className={`opcion ${selectedLevel === 'media' ? 'seleccionado' : ''}`}
+          onClick={() => { setSelectedLevel('media'); setShowError(false); }}
+        >
+          🔔 Media
+        </button>
+        <button
+          className={`opcion ${selectedLevel === 'dificil' ? 'seleccionado' : ''}`}
+          onClick={() => { setSelectedLevel('dificil'); setShowError(false); }}
+        >
+          🦅 Difícil
+        </button>
+      </div>
+
+      <button className="boton-practica" onClick={handleStart}>
+        Comenzar práctica
+      </button>
+
+      {showError && (
+        <div className="alerta">
+          ⚠️ Debes seleccionar una canción y una dificultad antes de continuar.
+        </div>
+      )}
     </div>
   );
 }
