@@ -19,7 +19,7 @@ Cada vez que el usuario presiona un sensor:
 
 ## Comunicación MQTT
 * **Broker:** HiveMQ Cloud
-* **Puerto TLS:** 8883
+* **Puerto TLS:** 8884 y 0
 * **Topic usado:** picow/fingers
 * **Seguridad:** autenticación con usuario y contraseña
 
