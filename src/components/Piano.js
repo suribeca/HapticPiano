@@ -9,6 +9,8 @@ import {
   MIDI_TO_NOTE, // Mapeo número MIDI → nota legible
 } from '../global/constants';
 import { connectMQTT } from '../services/MqttClient'; // Conexión a broker MQTT
+import { FallingNote } from './FallingNote'; // Notas que caen visualmente
+import './FallingNote.css'; // Estilos para las notas que caen
 
 // Componente principal del piano
 class Piano extends React.Component {
@@ -22,7 +24,8 @@ class Piano extends React.Component {
         middle: "#ccc",
         ring: "#ccc",
         pinky: "#ccc"
-      }
+      },
+      fallingNotes: [] // Notas a visualizar como animación descendente
     };
     // Referencia para centrar visualmente en do4 al cargar
     this.pianoContainerRef = React.createRef();
@@ -43,7 +46,7 @@ class Piano extends React.Component {
       this.setState({ fingerColors: data });
     });
 
-    // Centra visualmente el piano en la tecla do4
+    // Centra visualmente el piano en la tecla do4 (do central)
     setTimeout(() => {
       const container = this.pianoContainerRef.current;
       const do4Key = document.getElementById('do4');
@@ -53,6 +56,12 @@ class Piano extends React.Component {
         container.scrollLeft = keyOffset - containerWidth / 2;
       }
     }, 300);
+
+    // Carga las notas desde un archivo JSON para visualización tipo Synthesia
+    fetch('/notes/odeDifficult.json')
+      .then(res => res.json())
+      .then(data => this.setState({ fallingNotes: data }))
+      .catch(err => console.error('Error al cargar notas JSON:', err));
   }
 
   // Conexión exitosa a un dispositivo MIDI
@@ -96,7 +105,7 @@ class Piano extends React.Component {
 
   // Reproduce el archivo de audio correspondiente a la nota
   playNote = (note) => {
-    // Corrección específica para La, La# y Si (que suenan una octava abajo) aún no sabemos pq jeje
+    // Corrección específica para La, La# y Si (que suenan una octava abajo)
     const match = note.match(/^(la|zla|si)(\d)$/);
     let notaCorregida = note;
 
@@ -123,34 +132,75 @@ class Piano extends React.Component {
       return match && parseInt(match[0]) <= 6;
     });
 
+    const keyWidth = 40;
+    const containerHeight = 300;
+
     return (
-      <div className="piano-container" ref={this.pianoContainerRef}>
+      <div style={{ backgroundColor: '#2b2d31', minHeight: '100vh' }}>
 
-        {/* Mano centrada en pantalla */}
-        <div className="hand-wrapper">
-          <Hand fingerColors={this.state.fingerColors} />
+        {/* Botón arriba a la derecha */}
+        <div className="volver-wrapper">
+          <button
+            className="volver-btn"
+            onClick={() => window.location.href = '/'}
+          >
+            ⬅ Volver al inicio
+          </button>
         </div>
 
-        {/* Visualización horizontal del teclado */}
-        <div className="piano">
-          {VISIBLE_NOTES.map((note, index) => (
-            <Key
-              key={index}
-              note={note}
-              pressedKeys={this.state.pressedNotes}
-            />
-          ))}
-        </div>
+        {/* Contenedor principal del piano y la mano */}
+        <div className="piano-container" ref={this.pianoContainerRef}>
 
-        {/* Elementos de audio ocultos para TODAS las notas */}
-        <div>
-          {NOTES.map((note, index) => (
-            <audio
-              id={note}
-              key={index}
-              src={`../../notes/${note}.mp3`}
-            />
-          ))}
+          {/* Mano centrada visualmente */}
+          <div className="hand-wrapper">
+            <Hand fingerColors={this.state.fingerColors} />
+          </div>
+
+          {/* Visualización de notas descendentes sincronizadas */}
+          <div
+            className="note-visualizer"
+            style={{
+              position: 'absolute',
+              top: 0,
+              height: containerHeight,
+              width: '100%',
+              pointerEvents: 'none',
+              zIndex: 3
+            }}
+          >
+            {this.state.fallingNotes.map((n, i) => (
+              <FallingNote
+                key={i}
+                note={n.note}
+                time={n.time}
+                duration={3}
+                keyWidth={keyWidth}
+                containerHeight={containerHeight}
+              />
+            ))}
+          </div>
+
+          {/* Teclado horizontal scrolleable */}
+          <div className="piano">
+            {VISIBLE_NOTES.map((note, index) => (
+              <Key
+                key={index}
+                note={note}
+                pressedKeys={this.state.pressedNotes}
+              />
+            ))}
+          </div>
+
+          {/* Audios ocultos para todas las notas */}
+          <div>
+            {NOTES.map((note, index) => (
+              <audio
+                id={note}
+                key={index}
+                src={`../../notes/${note}.mp3`}
+              />
+            ))}
+          </div>
         </div>
       </div>
     );

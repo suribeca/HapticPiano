@@ -1,0 +1,19 @@
+.falling-note {
+  position: absolute;
+  width: 25px;
+  height: 20px;
+  background-color: #00AEEF;
+  border-radius: 4px;
+  animation: fall linear;
+  animation-fill-mode: forwards;
+  z-index: 4;
+}
+
+@keyframes fall {
+  from {
+    top: 0px;
+  }
+  to {
+    top: 300px;
+  }
+}

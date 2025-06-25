@@ -23,11 +23,14 @@ class Key extends React.Component {
       keyClassName += " pressed"; // Aplica efecto visual de tecla presionada
     }
 
-    // Renderiza una tecla negra sin texto, o una tecla blanca con la nota visible
-    return noteIsFlat ? ( 
-      <div className={keyClassName}></div> 
+    // Renderiza una tecla negra sin texto, o una tecla blanca con la nota visible}
+    // Esto hace que cada tecla del piano tenga un id único basado en su nombre 
+    // (do4, zsol4, etc.), que es justo lo que necesita el componente FallingNote.js 
+    // para posicionarse correctamente sobre ella.
+    return noteIsFlat ? (
+      <div className={keyClassName} id={note}></div> 
     ) : (
-      <div className={keyClassName}>
+      <div className={keyClassName} id={note}>
         <div className="key-text">{note.toUpperCase()}</div>
       </div>
     );

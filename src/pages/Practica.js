@@ -35,6 +35,12 @@ function Practica() {
         >
           🎶 Ode to Joy
         </button>
+        <button
+          className={`opcion ${selectedSong === 'lamb' ? 'seleccionado' : ''}`}
+          onClick={() => { setSelectedSong('lamb'); setShowError(false); }}
+        >
+          🎶 Mary Had a Little Lamb
+        </button>
       </div>
 
       <h2 className="titulo">Dificultad</h2>
@@ -51,7 +57,7 @@ function Practica() {
           className={`opcion ${selectedLevel === 'media' ? 'seleccionado' : ''}`}
           onClick={() => { setSelectedLevel('media'); setShowError(false); }}
         >
-          🔔 Media
+          🐔 Media
         </button>
         <button
           className={`opcion ${selectedLevel === 'dificil' ? 'seleccionado' : ''}`}
