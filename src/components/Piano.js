@@ -8,7 +8,7 @@ import {
   NOTES,        // Lista completa de notas ('do3', 'zsol4', etc.)
   MIDI_TO_NOTE, // Mapeo número MIDI → nota legible
 } from '../global/constants';
-import { connectMQTT } from '../services/MqttClient'; // Conexión a broker MQTT
+import { connectMQTT, publishFeedback } from '../services/MqttClient'; // Conexión a broker MQTT para intercambio de mensajes
 import { FallingNote } from './FallingNote'; // Notas que caen visualmente
 import './FallingNote.css'; // Estilos para las notas que caen
 
@@ -19,16 +19,18 @@ class Piano extends React.Component {
     this.state = {
       pressedNotes: [],
       fingerColors: {
-        thumb: "#ccc",
-        index: "#ccc",
-        middle: "#ccc",
-        ring: "#ccc",
-        pinky: "#ccc"
+        thumb: "#cccccc",
+        index: "#cccccc",
+        middle: "#cccccc",
+        ring: "#cccccc",
+        pinky: "#cccccc"
       },
+      fingerStatus: {},
       fallingNotes: [] // Notas a visualizar como animación descendente
     };
-    // Referencia para centrar visualmente en do4 al cargar
-    this.pianoContainerRef = React.createRef();
+
+    this.pianoContainerRef = React.createRef(); // Referencia para centrar visualmente en do4 al cargar
+    this.prevFingerStatus = {}; // Estado de los dedos recibido de la Raspberry
   }
 
   // Se ejecuta cuando el componente se monta
@@ -40,10 +42,16 @@ class Piano extends React.Component {
       console.warn("Web MIDI API no soportada en este navegador.");
     }
 
-    // Escucha datos MQTT para actualizar colores de dedos
+    // Conexión MQTT
     connectMQTT((data) => {
-      console.log("Colores recibidos:", data);
-      this.setState({ fingerColors: data });
+      console.log("Datos recibidos del broker:", data);
+
+      this.setState({
+        //fingerColors: this.mapColors(data),
+        fingerStatus: data
+      });
+
+      this.prevFingerStatus = this.state.fingerStatus;
     });
 
     // Centra visualmente el piano en la tecla do4 (do central)
@@ -63,7 +71,15 @@ class Piano extends React.Component {
       .then(data => this.setState({ fallingNotes: data }))
       .catch(err => console.error('Error al cargar notas JSON:', err));
   }
-
+/*
+  mapColors = (data) => {
+    const colors = {};
+    for (const [finger, isPressed] of Object.entries(data)) {
+      colors[finger] = isPressed ? "#00ff00" : "#cccccc";
+    }
+    return colors;
+  }
+*/
   // Conexión exitosa a un dispositivo MIDI
   onMIDISuccess = (midiAccess) => {
     for (let input of midiAccess.inputs.values()) {
@@ -89,18 +105,43 @@ class Piano extends React.Component {
     const noteName = MIDI_TO_NOTE[noteNumber];
     if (!noteName) return;
 
+    // Lectura de estado previo  preparación de envío
+    const prevPressedNotes = this.state.pressedNotes;
+    const prevFingerStatus = this.state.fingerStatus || {};
+    const feedback = {};
+
+
     if (isNoteOn) {
-      this.setState((prev) => ({
-        pressedNotes: [...prev.pressedNotes, noteName],
-      }));
+      this.setState({ pressedNotes: [...prevPressedNotes, noteName] });
       this.playNote(noteName);
+
+      const currentFingers = Object.entries(prevFingerStatus).filter(([_, v]) => v).map(([k]) => k);
+      const previousFingers = Object.entries(this.prevFingerStatus).filter(([_, v]) => v).map(([k]) => k);
+      const newFinger = currentFingers.find(f => !previousFingers.includes(f));
+
+      for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
+        const pressed = prevFingerStatus[finger] || false;
+        feedback[finger] = {
+          pressed,
+          color: pressed ? "#00ff00" : "#cccccc",
+          freq: 3000
+        };
+      }
+
+      if (newFinger) {
+        feedback[newFinger].note = noteName;
+      }
+
+      publishFeedback(feedback);
     }
 
     if (isNoteOff) {
-      this.setState((prev) => ({
-        pressedNotes: prev.pressedNotes.filter((note) => note !== noteName),
-      }));
+      this.setState({
+        pressedNotes: prevPressedNotes.filter(n => n !== noteName)
+      });
     }
+
+    this.prevFingerStatus = { ...prevFingerStatus };
   };
 
   // Reproduce el archivo de audio correspondiente a la nota

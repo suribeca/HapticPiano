@@ -44,7 +44,10 @@ const MIDI_TO_NOTE = {
   84: 'do6'
 };
 
+const FINGERS_IN_ORDER = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+
 export {
   NOTES,
   MIDI_TO_NOTE,
+  FINGERS_IN_ORDER,
 };

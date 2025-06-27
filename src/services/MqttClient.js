@@ -5,8 +5,13 @@ import mqtt from 'mqtt';
 let client = null;
 
 /**
- * Función para conectar al broker MQTT.
- * @param {function} onMessageCallback - Función que se ejecutará cada vez que se reciba un mensaje del topic suscrito.
+ * Función para conectar al broker MQTT usando WebSockets seguros.
+ * Se utiliza HiveMQ Cloud como servidor.
+ * 
+ * Además esta función se suscribe al tópico 'picow/fingers' que recibe los datos del Raspberry Pi Pico W 
+ * 
+ * @param {function} onMessageCallback - Función callback que se ejecuta cuando se recibe un mensaje MQTT válido.
+ * El mensaje se entrega como objeto JavaScript (ya parseado desde JSON).
  */
 export function connectMQTT(onMessageCallback) {
   // Si ya hay una conexión activa, no vuelve a conectar
@@ -24,7 +29,7 @@ export function connectMQTT(onMessageCallback) {
   };
 
   // Conecta al broker especificando la URL completa del endpoint WSS + opciones
-  client = mqtt.connect('wss://dc882ec947774d7997f7af426c65bd0e.s1.eu.hivemq.cloud:8884/mqtt', options);
+  client = mqtt.connect('wss://dae3db229f2d427b820bf6346fece546.s1.eu.hivemq.cloud:8884/mqtt', options);
 
   // Cuando se establece la conexión exitosamente
   client.on('connect', () => {
@@ -56,5 +61,25 @@ export function connectMQTT(onMessageCallback) {
   // Si ocurre un error con la conexión al broker
   client.on('error', (err) => {
     console.error('Error en MQTT:', err);
+  });
+}
+
+/**
+ * Publica el estado completo de todos los dedos al broker.
+ * @param {Object} fingerStates - Objeto con el estado de cada dedo (pressed + color)
+ */
+export function publishFeedback(fingerStates) {
+  if (!client || !client.connected) {
+    console.warn('Cliente MQTT no conectado');
+    return;
+  }
+  const payload = JSON.stringify(fingerStates);
+
+  client.publish('web/pressed', payload, { qos: 0 }, (err) => {
+    if (err) {
+      console.error('Error al publicar estado completo:', err);
+    } else {
+      console.log(`Publicado estado completo: ${payload}`);
+    }
   });
 }
