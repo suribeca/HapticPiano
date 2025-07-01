@@ -31,6 +31,7 @@ class Piano extends React.Component {
 
     this.pianoContainerRef = React.createRef(); // Referencia para centrar visualmente en do4 al cargar
     this.prevFingerStatus = {}; // Estado de los dedos recibido de la Raspberry
+    this.lastPublished = {};
   }
 
   // Se ejecuta cuando el componente se monta
@@ -44,10 +45,9 @@ class Piano extends React.Component {
 
     // Conexión MQTT
     connectMQTT((data) => {
-      console.log("Datos recibidos del broker:", data);
+      //console.log("Datos recibidos del broker:", data);
 
       this.setState({
-        //fingerColors: this.mapColors(data),
         fingerStatus: data
       });
 
@@ -71,15 +71,8 @@ class Piano extends React.Component {
       .then(data => this.setState({ fallingNotes: data }))
       .catch(err => console.error('Error al cargar notas JSON:', err));
   }
-/*
-  mapColors = (data) => {
-    const colors = {};
-    for (const [finger, isPressed] of Object.entries(data)) {
-      colors[finger] = isPressed ? "#00ff00" : "#cccccc";
-    }
-    return colors;
-  }
-*/
+
+
   // Conexión exitosa a un dispositivo MIDI
   onMIDISuccess = (midiAccess) => {
     for (let input of midiAccess.inputs.values()) {
@@ -94,54 +87,67 @@ class Piano extends React.Component {
   }
 
   // Maneja cada mensaje MIDI recibido
-  handleMIDIMessage = ({ data }) => {
-    const [status, noteNumber, velocity] = data;
-    const NOTE_ON = 144;
-    const NOTE_OFF = 128;
+handleMIDIMessage = ({ data }) => {
+  const [status, noteNumber, velocity] = data;
+  const NOTE_ON = 144;
+  const NOTE_OFF = 128;
 
-    const isNoteOn = status === NOTE_ON && velocity > 0;
-    const isNoteOff = status === NOTE_OFF || (status === NOTE_ON && velocity === 0);
+  const isNoteOn = status === NOTE_ON && velocity > 0;
+  const isNoteOff = status === NOTE_OFF || (status === NOTE_ON && velocity === 0);
 
-    const noteName = MIDI_TO_NOTE[noteNumber];
-    if (!noteName) return;
+  const noteName = MIDI_TO_NOTE[noteNumber];
+  if (!noteName) return;
 
-    // Lectura de estado previo  preparación de envío
-    const prevPressedNotes = this.state.pressedNotes;
-    const prevFingerStatus = this.state.fingerStatus || {};
-    const feedback = {};
+  const prevPressedNotes = this.state.pressedNotes;
 
-
-    if (isNoteOn) {
-      this.setState({ pressedNotes: [...prevPressedNotes, noteName] });
-      this.playNote(noteName);
-
-      const currentFingers = Object.entries(prevFingerStatus).filter(([_, v]) => v).map(([k]) => k);
-      const previousFingers = Object.entries(this.prevFingerStatus).filter(([_, v]) => v).map(([k]) => k);
-      const newFinger = currentFingers.find(f => !previousFingers.includes(f));
+  const scheduleFeedback = () => {
+    setTimeout(() => {
+      const currentFingers = this.state.fingerStatus || {};
+      const feedback = {};
 
       for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
-        const pressed = prevFingerStatus[finger] || false;
+        const pressed = currentFingers[finger] || false;
         feedback[finger] = {
           pressed,
           color: pressed ? "#00ff00" : "#cccccc",
-          freq: 3000
+          freq: pressed ? this.noteToFreq(noteName) : 0
         };
       }
 
-      if (newFinger) {
-        feedback[newFinger].note = noteName;
-      }
+      // Si no ha cambiado nada, no publicar
+      if (_.isEqual(feedback, this.lastPublishedState)) return;
 
       publishFeedback(feedback);
-    }
+      this.lastPublishedState = feedback;
+    }, 80); // Espera a que Raspberry actualice su estado
+  };
 
-    if (isNoteOff) {
-      this.setState({
-        pressedNotes: prevPressedNotes.filter(n => n !== noteName)
-      });
-    }
+  if (isNoteOn) {
+    this.setState({ pressedNotes: [...prevPressedNotes, noteName] });
+    this.playNote(noteName);
+    scheduleFeedback();
+  }
 
-    this.prevFingerStatus = { ...prevFingerStatus };
+  if (isNoteOff) {
+    this.setState({
+      pressedNotes: prevPressedNotes.filter(n => n !== noteName)
+    });
+    scheduleFeedback();
+  }
+};
+
+  noteToFreq = (noteName) => {
+    const match = noteName.match(/\d+$/);
+    if (!match) return 0;
+
+    const pitchIndex = NOTES.indexOf(noteName);
+    if (pitchIndex === -1) return 0;
+
+    // Cuanto más aguda, más bajo el valor (inverso)
+    const ratio = pitchIndex / NOTES.length;
+    const freq = Math.round(65500 - (ratio * (65500 - 20000)));
+
+    return freq;
   };
 
   // Reproduce el archivo de audio correspondiente a la nota
