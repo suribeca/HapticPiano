@@ -64,3 +64,48 @@
 .volver-btn:hover {
   background-color: #0c85d0;
 }
+
+.practice-control {
+  position: absolute;
+  top: 180px; /* Debajo de la mano */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  text-align: center;
+}
+
+.start-button {
+  padding: 10px 20px;
+  font-size: 18px;
+  background-color: #00bfff;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.countdown {
+  font-size: 48px;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.start-button-wrapper {
+  position: absolute;
+  top: 225px; /* Altura del botón de inicio */
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  z-index: 10;
+}
+
+.countdown-display {
+  position: absolute;
+  top: 225px; /* Atura del display, igual al del inicio */
+  width: 100%;
+  text-align: center;
+  font-size: 48px;
+  font-weight: bold;
+  color: #00BFFF;
+  z-index: 10;
+}
