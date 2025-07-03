@@ -13,8 +13,14 @@ function Practica() {
       setShowError(true);
       return;
     }
-    // Si todo bien, ir al demo
-    navigate('/demo');
+    // Si todo bien, ir al piano
+    navigate('/piano', {
+      state: {
+        mode: 'cancion',
+        song: selectedSong,
+        difficulty: selectedLevel
+      }
+    });
   };
 
   return (
@@ -48,16 +54,16 @@ function Practica() {
       {/* Dificultades */}
       <div className="opciones-grid">
         <button
+          className={`opcion ${selectedLevel === 'practica' ? 'seleccionado' : ''}`}
+          onClick={() => { setSelectedLevel('practica'); setShowError(false); }}
+        >
+          🐣 Práctica
+        </button>
+        <button
           className={`opcion ${selectedLevel === 'facil' ? 'seleccionado' : ''}`}
           onClick={() => { setSelectedLevel('facil'); setShowError(false); }}
         >
-          🐣 Fácil
-        </button>
-        <button
-          className={`opcion ${selectedLevel === 'media' ? 'seleccionado' : ''}`}
-          onClick={() => { setSelectedLevel('media'); setShowError(false); }}
-        >
-          🐔 Media
+          🐔 Fácil
         </button>
         <button
           className={`opcion ${selectedLevel === 'dificil' ? 'seleccionado' : ''}`}

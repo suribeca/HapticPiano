@@ -1,4 +1,6 @@
 .falling-note {
+
+
   position: absolute;
   width: 25px;
   height: 20px;
@@ -10,10 +12,7 @@
 }
 
 @keyframes fall {
-  from {
-    top: 0px;
-  }
-  to {
-    top: 300px;
-  }
+  0%   { top: 0px; opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 310px; opacity: 0; }
 }

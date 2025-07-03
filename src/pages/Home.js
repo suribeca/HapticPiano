@@ -26,7 +26,16 @@ function Home() {
 
         <div className="buttons">
           <button onClick={() => navigate('/practica')}>Comenzar práctica</button>
-          <button onClick={() => navigate('/demo')} className="outline">Explorar demo</button>
+          <button
+            onClick={() =>
+              navigate('/piano', {
+                state: { mode: 'libre' }
+              })
+            }
+            className="outline"
+          >
+            Explorar demo
+          </button>
         </div>
       </div>
     </div>
