@@ -1,1 +1,23 @@
-[{"note": 64, "time": 71.84}, {"note": 64, "time": 72.99}, {"note": 65, "time": 74.05}, {"note": 67, "time": 75.08}, {"note": 67, "time": 76.16}, {"note": 65, "time": 77.22}, {"note": 64, "time": 78.35}, {"note": 62, "time": 79.44}, {"note": 60, "time": 80.53}, {"note": 60, "time": 81.58}, {"note": 62, "time": 82.77}, {"note": 64, "time": 83.84}, {"note": 64, "time": 84.94}, {"note": 62, "time": 86.53}, {"note": 62, "time": 87.07}, {"note": 64, "time": 89.11}, {"note": 64, "time": 90.26}, {"note": 65, "time": 91.32}, {"note": 67, "time": 92.45}, {"note": 67, "time": 93.52}, {"note": 65, "time": 94.61}, {"note": 64, "time": 95.7}, {"note": 62, "time": 96.81}, {"note": 60, "time": 97.91}, {"note": 60, "time": 99.02}, {"note": 62, "time": 100.18}, {"note": 64, "time": 101.22}, {"note": 62, "time": 102.28}, {"note": 60, "time": 103.81}, {"note": 60, "time": 104.46}, {"note": 62, "time": 106.69}, {"note": 62, "time": 107.67}, {"note": 64, "time": 108.8}, {"note": 60, "time": 109.84}, {"note": 62, "time": 110.98}, {"note": 64, "time": 111.97}, {"note": 65, "time": 112.42}, {"note": 64, "time": 113.07}, {"note": 60, "time": 114.11}, {"note": 62, "time": 115.3}, {"note": 64, "time": 116.31}, {"note": 65, "time": 116.79}, {"note": 64, "time": 117.46}, {"note": 62, "time": 118.49}, {"note": 60, "time": 119.61}, {"note": 62, "time": 120.72}, {"note": 55, "time": 121.82}, {"note": 64, "time": 124.02}, {"note": 64, "time": 125.07}, {"note": 65, "time": 126.11}, {"note": 67, "time": 127.2}, {"note": 67, "time": 128.3}, {"note": 65, "time": 129.4}, {"note": 64, "time": 130.52}, {"note": 62, "time": 131.56}, {"note": 60, "time": 132.63}, {"note": 60, "time": 133.67}, {"note": 62, "time": 134.79}, {"note": 64, "time": 135.89}, {"note": 62, "time": 136.99}, {"note": 60, "time": 138.63}, {"note": 60, "time": 139.24}]
+[
+  {"note": 64, "time": 1.84}, {"note": 64, "time": 2.99}, {"note": 65, "time": 4.05},
+  {"note": 67, "time": 5.08}, {"note": 67, "time": 6.16}, {"note": 65, "time": 7.22},
+  {"note": 64, "time": 8.35}, {"note": 62, "time": 9.44}, {"note": 60, "time": 10.53},
+  {"note": 60, "time": 11.58}, {"note": 62, "time": 12.77}, {"note": 64, "time": 13.84},
+  {"note": 64, "time": 14.94}, {"note": 62, "time": 16.53}, {"note": 62, "time": 17.07},
+  {"note": 64, "time": 19.11}, {"note": 64, "time": 20.26}, {"note": 65, "time": 21.32},
+  {"note": 67, "time": 22.45}, {"note": 67, "time": 23.52}, {"note": 65, "time": 24.61},
+  {"note": 64, "time": 25.7}, {"note": 62, "time": 30.81}, {"note": 60, "time": 27.91},
+  {"note": 60, "time": 29.02}, {"note": 62, "time": 30.18}, {"note": 64, "time": 31.22},
+  {"note": 62, "time": 32.28}, {"note": 60, "time": 33.81}, {"note": 60, "time": 34.46},
+  {"note": 62, "time": 36.69}, {"note": 62, "time": 37.67}, {"note": 64, "time": 38.8},
+  {"note": 60, "time": 39.84}, {"note": 62, "time": 40.98}, {"note": 64, "time": 41.97},
+  {"note": 65, "time": 42.42}, {"note": 64, "time": 43.07}, {"note": 60, "time": 44.11},
+  {"note": 62, "time": 45.3}, {"note": 64, "time": 46.31}, {"note": 65, "time": 46.79},
+  {"note": 64, "time": 47.46}, {"note": 62, "time": 48.49}, {"note": 60, "time": 49.61},
+  {"note": 62, "time": 50.72}, {"note": 55, "time": 51.82}, {"note": 64, "time": 54.02},
+  {"note": 64, "time": 55.07}, {"note": 65, "time": 56.11}, {"note": 67, "time": 57.2},
+  {"note": 67, "time": 58.3}, {"note": 65, "time": 59.4}, {"note": 64, "time": 60.52},
+  {"note": 62, "time": 61.56}, {"note": 60, "time": 62.63}, {"note": 60, "time": 63.67},
+  {"note": 62, "time": 64.79}, {"note": 64, "time": 65.89}, {"note": 62, "time": 66.99},
+  {"note": 60, "time": 68.63}, {"note": 60, "time": 69.24}
+]
