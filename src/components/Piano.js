@@ -10,10 +10,10 @@ import {
 } from '../global/constants';
 import { connectMQTT, publishFeedback } from '../services/MqttClient'; // Conexión a broker MQTT para intercambio de mensajes
 import { FallingNote } from './FallingNote'; // Notas que caen visualmente
-import './FallingNote.css'; // Estilos para las notas que caen
+import './FallingNote.css'; // Estilos para las notas que caen (posición, color, animación, etc.)
 import { useLocation, useNavigate } from 'react-router-dom';
 
-function Piano() {
+export default function Piano() {
   const location = useLocation();
   const navigate = useNavigate();
   const { mode = 'cancion', song = 'ode', difficulty = 'practica' } = location.state || {};
@@ -32,36 +32,37 @@ function Piano() {
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [practiceStarted, setPracticeStarted] = useState(false);
+  const [globalFreeze, setGlobalFreeze] = useState(false); // Estado global para congelamiento
+  const [loadedNotes, setLoadedNotes] = useState([]); // almacena las notas cargadas del archivo
 
-  const practiceMode = difficulty;
+  const practiceMode = difficulty === 'practica';
   const pianoContainerRef = useRef(null);
   const prevFingerStatus = useRef({});
   const lastPublishedState = useRef({});
+  const activeNotesRef = useRef([]);
+  const practiceStartTime = useRef(null);
 
   // Se ejecuta al montar el componente
   useEffect(() => {
-    // Verifica que se haya seleccionado una canción y dificultad antes de continuar
-    if (!song || !difficulty) {
+    if (mode === 'cancion' && (!song || !difficulty)) {
       navigate('/practica');
       return;
     }
 
     console.log("🎹 Modo actual:", mode);
 
-    // Conecta al dispositivo MIDI si está disponible
     if (navigator.requestMIDIAccess) {
       navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
     } else {
       console.warn("Web MIDI API no soportada en este navegador.");
     }
 
-    // Conexión MQTT
     connectMQTT((data) => {
       setFingerStatus(data);
       prevFingerStatus.current = data;
     });
 
-    // Centra visualmente el piano en la tecla do4 (do central)
+    // Centrado inicial del piano en la nota Do4 (do central)
     setTimeout(() => {
       const container = pianoContainerRef.current;
       const do4Key = document.getElementById('do4');
@@ -72,19 +73,40 @@ function Piano() {
       }
     }, 300);
 
-    // Carga las notas desde un archivo JSON para visualización tipo Synthesia
+    // Carga del archivo JSON de notas para el modo canción
     const fileName = `${song}${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}.json`;
 
     fetch(`/songs/${fileName}`)
       .then(res => res.json())
       .then(data => {
-        setFallingNotes(data);
+        setLoadedNotes(data);
         console.log('🎵 Datos cargados:', fileName);
       })
       .catch(err => console.error('Error al cargar notas JSON:', err));
-  }, []);
+  }, [mode, song, difficulty, navigate]);
 
-  // Conexión exitosa a un dispositivo MIDI
+  // Generador de notas descendentes según el tiempo (modo práctica)
+  useEffect(() => {
+    if (!practiceStarted || loadedNotes.length === 0) return;
+
+    practiceStartTime.current = Date.now();
+
+    const interval = setInterval(() => {
+      // Cuando hay congelamiento global, no agregamos nuevas notas ni avanzamos las que ya están congeladas
+      if (globalFreeze) return;
+
+      const now = (Date.now() - practiceStartTime.current) / 1000;
+      const upcoming = loadedNotes.filter(n => n.time <= now && !activeNotesRef.current.includes(n));
+
+      if (upcoming.length > 0) {
+        setFallingNotes(prev => [...prev, ...upcoming]);
+        activeNotesRef.current.push(...upcoming);
+      }
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [practiceStarted, globalFreeze, loadedNotes]);
+
   const onMIDISuccess = (midiAccess) => {
     for (let input of midiAccess.inputs.values()) {
       console.log("Dispositivo MIDI conectado:", input.name);
@@ -92,12 +114,11 @@ function Piano() {
     }
   };
 
-  // Fallo al conectar a MIDI
   const onMIDIFailure = () => {
     console.error("No se pudo acceder a dispositivos MIDI.");
   };
 
-  // Maneja cada mensaje MIDI recibido
+  // Manejo de mensajes MIDI entrantes
   const handleMIDIMessage = ({ data }) => {
     const [status, noteNumber, velocity] = data;
     const NOTE_ON = 144;
@@ -138,7 +159,7 @@ function Piano() {
     }
   };
 
-  // Convierte nombre de nota a frecuencia estimada
+  // Convierte nombre de nota a una frecuencia aproximada para el motor háptico
   const noteToFreq = (noteName) => {
     const match = noteName.match(/\d+$/);
     if (!match) return 0;
@@ -150,7 +171,7 @@ function Piano() {
     return Math.round(65500 - (ratio * (65500 - 20000)));
   };
 
-  // Reproduce el archivo de audio correspondiente a la nota
+  // Reproduce el audio correspondiente a una nota
   const playNote = (note) => {
     const match = note.match(/^(la|zla|si)(\d)$/);
     let notaCorregida = note;
@@ -170,7 +191,7 @@ function Piano() {
     noteAudio.play();
   };
 
-  // Inicia la cuenta regresiva y luego activa la práctica
+  // Inicia la cuenta regresiva y luego comienza la práctica
   const comenzarPractica = () => {
     setShowCountdown(true);
     setCountdown(3);
@@ -187,7 +208,7 @@ function Piano() {
     }, 1000);
   };
 
-  // Solo mostrar hasta DO6 inclusive
+  // Solo mostrar notas hasta DO6 inclusive
   const VISIBLE_NOTES = NOTES.filter(note => {
     const match = note.match(/\d$/);
     return match && parseInt(match[0]) <= 6;
@@ -205,7 +226,7 @@ function Piano() {
           className="volver-btn"
           onClick={() => navigate('/')}
         >
-          ⬅ Volver al menú 
+          ⬅ Volver al menú
         </button>
       </div>
 
@@ -258,8 +279,19 @@ function Piano() {
                 containerHeight={containerHeight}
                 pressedNotes={pressedNotes}
                 practiceMode={practiceMode}
+                freezeAll={globalFreeze}
+                setGlobalFreeze={setGlobalFreeze}
                 onEnd={() => {
-                  setFallingNotes(prev => prev.filter((_, index) => index !== i));
+                  // Al terminar o eliminar una nota, quitarla de la lista y liberar el congelamiento global si corresponde
+                  setFallingNotes(prev => {
+                    const newNotes = prev.filter((_, index) => index !== i);
+                    if (newNotes.length === prev.length - 1) {
+                      // Si no hay notas congeladas, liberar globalFreeze
+                      // (Se libera cuando no quedan notas o ninguna está congelada)
+                      setGlobalFreeze(false);
+                    }
+                    return newNotes;
+                  });
                 }}
               />
             ))}
@@ -289,7 +321,7 @@ function Piano() {
             <audio
               id={note}
               key={index}
-              src={`../../notes/${note}.mp3`}
+              src={`/notes/${note}.mp3`}
             />
           ))}
         </div>
@@ -297,5 +329,3 @@ function Piano() {
     </div>
   );
 }
-
-export { Piano };
