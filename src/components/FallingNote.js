@@ -3,139 +3,99 @@ import './FallingNote.css';
 import { MIDI_TO_NOTE } from '../global/constants';
 
 /**
- * Componente que representa una nota que cae visualmente sobre el piano.
- * @param {number} note - Número MIDI de la nota.
- * @param {number} time - Tiempo en segundos cuando la nota debe empezar a caer.
- * @param {number} duration - Duración total que tarda en caer la nota (segundos).
- * @param {number} containerHeight - Altura del contenedor para calcular posición vertical.
- * @param {function} onEnd - Callback que se llama cuando la nota termina su animación o se elimina.
- * @param {boolean} practiceMode - Indica si se está en modo práctica (con congelamiento).
- * @param {string[]} pressedNotes - Lista de nombres de notas actualmente presionadas.
- * @param {boolean} freezeAll - Estado global de congelamiento de notas.
- * @param {function} setGlobalFreeze - Setter para activar/desactivar congelamiento global.
+ * Nota descendente animada. Cae según tiempo `time`, y se congela si no es presionada (modo práctica).
  */
 export function FallingNote({
+  id,
   note,
   time,
   duration = 3,
   containerHeight = 300,
   onEnd,
   practiceMode = false,
-  pressedNotes = [],
-  freezeAll = false,
-  setGlobalFreeze = () => {}
+  pressedNotes = []
 }) {
-  const [start, setStart] = useState(false);
-  const [leftPos, setLeftPos] = useState(null);
-  const [progress, setProgress] = useState(0);
-
-  const requestRef = useRef();
-  const startTimeRef = useRef();
-  const frozenRef = useRef(false);
-  const freezeTimeRef = useRef(null);
-  const localFreezeProgressRef = useRef(null);
-  const alreadyClearedRef = useRef(false); // Para evitar que se borre dos veces
+  const [left, setLeft] = useState(null);          // Posición horizontal
+  const [rendered, setRendered] = useState(false); // Mostrar en DOM
+  const [frozen, setFrozen] = useState(false);     // Nota congelada
 
   const noteName = MIDI_TO_NOTE[note];
+  const requestRef = useRef();
+  const startAt = useRef(performance.now() + time * 1000); // Tiempo objetivo para iniciar animación
 
-  // Esperar el tiempo indicado para iniciar la caída
+  // Ubica la nota visualmente encima de la tecla correspondiente
   useEffect(() => {
-    const delay = time * 1000;
-    const timer = setTimeout(() => {
-      const keyElement = document.getElementById(noteName);
-      const container = document.querySelector('.piano-container')?.getBoundingClientRect();
-      if (keyElement && container) {
-        const rect = keyElement.getBoundingClientRect();
-        const position = rect.left - container.left + keyElement.offsetWidth / 4;
-        setLeftPos(position);
-        setStart(true);
-      }
-    }, delay);
+    const key = document.getElementById(noteName);
+    const container = document.querySelector('.piano-container')?.getBoundingClientRect();
+    if (key && container) {
+      const keyRect = key.getBoundingClientRect();
+      const leftPos = keyRect.left - container.left + key.offsetWidth / 4;
+      setLeft(leftPos);
+      setRendered(true);
+    }
+  }, [noteName]);
 
-    return () => clearTimeout(timer);
-  }, [note, time, noteName]);
-
+  // Animación continua controlada por tiempo
   useEffect(() => {
-    if (!start) return;
+    if (left === null) return;
 
-    const animate = (timestamp) => {
-      if (!startTimeRef.current) startTimeRef.current = timestamp;
+    const animate = (now) => {
+      const elapsed = (now - startAt.current) / 1000; // Tiempo desde el inicio programado
+      let progress = elapsed / duration;
 
-      // Tiempo transcurrido desde el inicio de animación (segundos)
-      const elapsed = (timestamp - startTimeRef.current) / 1000;
-      const currentProgress = elapsed / duration;
-
-      const isPressed = pressedNotes.includes(noteName);
-      const inHitZone = currentProgress >= 0.9 && currentProgress < 0.99;
-
-      // Caso 1: Si la nota está en zona válida y usuario presionó la tecla, eliminar nota
-      if (isPressed && inHitZone && !alreadyClearedRef.current) {
-        alreadyClearedRef.current = true;
-        onEnd?.();
-        return; // detener animación para esta nota
-      }
-
-      // Caso 2: Si modo práctica y la nota llegó casi al final sin presionarse, congelar
-      if (practiceMode && currentProgress >= 0.99 && !isPressed && !frozenRef.current) {
-        frozenRef.current = true;
-        freezeTimeRef.current = timestamp;
-        localFreezeProgressRef.current = currentProgress;
-        setGlobalFreeze(true); // congela globalmente
-        setProgress(currentProgress);
-        requestRef.current = requestAnimationFrame(animate);
+      if (progress < 0) {
+        requestRef.current = requestAnimationFrame(animate); // Aún no inicia
         return;
       }
 
-      // Caso 3: Si ya congelada y ahora la presionan, liberar congelamiento
-      if (frozenRef.current && isPressed) {
-        const freezeDuration = timestamp - freezeTimeRef.current;
-        startTimeRef.current += freezeDuration; // Ajusta tiempo para continuar animación
-        frozenRef.current = false;
-        localFreezeProgressRef.current = null;
-        setGlobalFreeze(false);
+      // Modo práctica: congela si no se presionó
+      if (practiceMode && !pressedNotes.includes(noteName) && progress >= 0.83) {
+        progress = 0.83;
+        setFrozen(true);
       }
 
-      // Caso 4: En caso de freezeAll (congelamiento global), mantener posición
-      if (freezeAll && !frozenRef.current) {
-        if (localFreezeProgressRef.current === null) {
-          localFreezeProgressRef.current = currentProgress;
-        }
-        setProgress(localFreezeProgressRef.current);
+      const top = Math.min(progress * containerHeight, containerHeight);
+
+      // Mueve visualmente
+      const el = document.getElementById(`falling-${id}`);
+      if (el) {
+        el.style.top = `${top}px`;
+      }
+
+      if (progress < 1) {
         requestRef.current = requestAnimationFrame(animate);
-        return;
-      }
-
-      // Caso 5: Al llegar al final sin presionar (modo no práctica), eliminar nota
-      if (currentProgress >= 1 && !alreadyClearedRef.current) {
-        alreadyClearedRef.current = true;
-        onEnd?.();
-        return;
-      }
-
-      // Actualizar progreso normalmente
-      setProgress(currentProgress);
-
-      // Continuar animación si no se eliminó
-      if (!alreadyClearedRef.current) {
-        requestRef.current = requestAnimationFrame(animate);
+      } else if (!practiceMode || pressedNotes.includes(noteName)) {
+        onEnd?.(id);
       }
     };
 
     requestRef.current = requestAnimationFrame(animate);
-
     return () => cancelAnimationFrame(requestRef.current);
-  }, [start, pressedNotes, practiceMode, freezeAll, noteName, setGlobalFreeze]);
+  }, [left, practiceMode, pressedNotes, id, duration, containerHeight, onEnd, noteName]);
 
-  if (!start || leftPos === null) return null;
+  // Cuando se congela pero luego se toca correctamente
+  useEffect(() => {
+    if (frozen && pressedNotes.includes(noteName)) {
+      onEnd?.(id);
+    }
+  }, [pressedNotes, frozen, noteName, id, onEnd]);
 
-  const topPos = Math.min(progress * containerHeight, containerHeight);
+  if (!rendered || left === null) return null;
 
   return (
     <div
+      id={`falling-${id}`}
       className="falling-note"
       style={{
-        left: `${leftPos}px`,
-        top: `${topPos}px`
+        left: `${left}px`,
+        top: `-30px`, // Empieza arriba del contenedor
+        width: '30px',
+        height: '30px',
+        position: 'absolute',
+        backgroundColor: frozen ? '#888' : '#00BFFF',
+        borderRadius: '5px',
+        zIndex: 10,
+        pointerEvents: 'none',
       }}
     />
   );
