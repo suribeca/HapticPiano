@@ -5,6 +5,6 @@
   background-color: #00AEEF;     /* Azul cielo */
   border-radius: 4px;
   transition: none;
-  z-index: 10;
+  z-index: 50;
   pointer-events: none;
 }

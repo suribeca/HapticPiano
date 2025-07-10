@@ -26,12 +26,15 @@ function Piano() {
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [practiceStarted, setPracticeStarted] = useState(false);
+  const [score, setScore] = useState(0);
 
   const practiceMode = difficulty;
   const prevFingerStatus = useRef({});
   const lastPublishedState = useRef({});
   const pianoContainerRef = useRef(null);
   const audioRefs = useRef({}); // Refs para reproducir audio precargado
+  const incrementScore = (total) => setScore(prev => prev + total);
+
 
   // Al montar: configurar MIDI, MQTT y notas
   useEffect(() => {
@@ -168,17 +171,22 @@ function Piano() {
   });
 
   const keyWidth = 40;
-  const containerHeight = 300;
+  const containerHeight = 350;
 
   return (
     <div style={{ backgroundColor: '#2b2d31', minHeight: '100vh' }}>
-      {/* Botón de regreso */}
-      <div className="volver-wrapper">
-        <button className="volver-btn" onClick={() => navigate('/')}>
-          ⬅ Volver al menú
-        </button>
-      </div>
 
+      <div className="topContainer">
+        {/* Botón de regreso */}
+        <div className="volver-wrapper">
+          <button className="volver-btn" onClick={() => navigate('/')}>
+            ⬅ Volver al menú
+          </button>
+        </div>
+        <div className="score-wrapper">
+          <span className="score-text">Puntaje:{score} </span>
+        </div>
+      </div>
       {/* Contenedor del piano */}
       <div className="piano-container" ref={pianoContainerRef}>
 
@@ -221,6 +229,7 @@ function Piano() {
                 containerHeight={containerHeight}
                 pressedNotes={pressedNotes}
                 practiceMode={practiceMode}
+                onScore={incrementScore}
                 onEnd={(id) => {
                   setFallingNotes(prev => prev.filter(note => note.id !== id));
                 }}
