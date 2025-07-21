@@ -1,9 +1,19 @@
-import React, { use, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './FallingNote.css';
 import { MIDI_TO_NOTE } from '../global/constants';
 
 /**
- * Nota descendente animada. Cae según tiempo `time`, y se congela si no es presionada (modo práctica).
+ * Nota descendente animada.
+ * @param {Object} props
+ * @param {string} id - ID única para identificar la nota
+ * @param {number} note - Número MIDI
+ * @param {number} time - Tiempo en segundos en que debe aparecer
+ * @param {number} duration - Duración total de caída en segundos
+ * @param {number} containerHeight - Altura del contenedor visual
+ * @param {function} onScore - Callback para registrar puntaje y offset
+ * @param {function} onEnd - Callback para eliminar nota del DOM
+ * @param {boolean} practiceMode - Modo práctica (no usado aquí pero útil)
+ * @param {string[]} pressedNotes - Notas actualmente presionadas
  */
 export function FallingNote({
   id,
@@ -11,23 +21,21 @@ export function FallingNote({
   time,
   duration = 3,
   containerHeight = 300,
-  onScore = (incrementScore) => { },
+  onScore = (score, offsetMs) => { },
   onEnd,
   practiceMode = false,
   pressedNotes = []
 }) {
-  const [left, setLeft] = useState(null);          // Posición horizontal
-  const [rendered, setRendered] = useState(false); // Mostrar en DOM
-  const [frozen, setFrozen] = useState(false);     // Nota congelada
-  const [active, setActive] = useState(false);     // Activable para puntos
+  const [left, setLeft] = useState(null);
+  const [rendered, setRendered] = useState(false);
+  const [active, setActive] = useState(false);
 
   const noteName = MIDI_TO_NOTE[note];
   const requestRef = useRef();
-  const startAt = useRef(performance.now() + time * 1000); // Tiempo objetivo para iniciar animación
+  const scored = useRef(false); // ✅ para evitar múltiples puntajes
+  const startAt = useRef(performance.now() + time * 1000);
 
-  const score = 0;
-
-  // Ubica la nota visualmente encima de la tecla correspondiente
+  // Posicionamiento inicial
   useEffect(() => {
     const key = document.getElementById(noteName);
     const container = document.querySelector('.piano-container')?.getBoundingClientRect();
@@ -39,47 +47,46 @@ export function FallingNote({
     }
   }, [noteName]);
 
-  // Animación continua controlada por tiempo
+  // Animación
   useEffect(() => {
     if (left === null) return;
 
     const animate = (now) => {
-      const elapsed = (now - startAt.current) / 1000; // Tiempo desde el inicio programado
-      let progress = elapsed / duration;
-
-      if (progress < 0) {
-        requestRef.current = requestAnimationFrame(animate); // Aún no inicia
-        return;
-      }
-
-      if (pressedNotes.includes(noteName) && progress >= 0.72 && progress <= 0.79) {
-        onScore(50);         // ✅ Incrementar puntaje
-        onEnd?.(id);
-      }
-
-      if (pressedNotes.includes(noteName) && progress >= 0.80 && progress <= 0.90) {
-        onScore(100);         // ✅ Incrementar puntaje
-        onEnd?.(id);
-      }
-
-
-      // Elimina si no se presiona
-      if (!pressedNotes.includes(noteName) && progress >= 0.78 && progress <= 0.90) {
-        setActive(true);
-      }
-
-
-      // Elimina si no se presiona
-      if (!pressedNotes.includes(noteName) && progress >= 0.92) {
-        onEnd?.(id);
-      }
-
+      const elapsed = (now - startAt.current) / 1000;
+      const progress = elapsed / duration;
       const top = Math.min(progress * containerHeight, containerHeight);
 
-      // Mueve visualmente
       const el = document.getElementById(`falling-${id}`);
       if (el) {
         el.style.top = `${top}px`;
+      }
+
+      const idealProgress = 0.85;
+      const offsetMs = (progress - idealProgress) * duration * 1000;
+
+      if (!scored.current && pressedNotes.includes(noteName)) {
+        if (Math.abs(offsetMs) <= 50) {
+          onScore(100, offsetMs);
+          scored.current = true;
+          onEnd?.(id);
+          return;
+        } else if (Math.abs(offsetMs) <= 100) {
+          onScore(50, offsetMs);
+          scored.current = true;
+          onEnd?.(id);
+          return;
+        }
+      }
+
+      if (!active && !pressedNotes.includes(noteName) && progress >= 0.80 && progress <= 0.90) {
+        setActive(true); // verde cuando en zona de acierto pero no presionada
+      }
+
+      if (!pressedNotes.includes(noteName) && progress >= 0.92 && !scored.current) {
+        onScore(0, offsetMs); // miss
+        scored.current = true;
+        onEnd?.(id);
+        return;
       }
 
       if (progress < 1) {
@@ -91,16 +98,7 @@ export function FallingNote({
 
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
-  }, [left, practiceMode, pressedNotes, id, duration, containerHeight, onEnd, noteName]);
-
-  /*  Congelar notas
-  // Cuando se congela pero luego se toca correctamente
-  useEffect(() => {
-    if (frozen && pressedNotes.includes(noteName)) {
-      onEnd?.(id);
-    }
-  }, [pressedNotes, frozen, noteName, id, onEnd]);
-  */
+  }, [left, pressedNotes, id, duration, containerHeight, onEnd, noteName, practiceMode, onScore]);
 
   if (!rendered || left === null) return null;
 
@@ -110,7 +108,7 @@ export function FallingNote({
       className="falling-note"
       style={{
         left: `${left}px`,
-        top: `-30px`, // Empieza arriba del contenedor
+        top: `-30px`,
         width: '30px',
         height: '30px',
         position: 'absolute',

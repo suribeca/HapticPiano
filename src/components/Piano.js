@@ -27,6 +27,9 @@ function Piano() {
   const [countdown, setCountdown] = useState(3);
   const [practiceStarted, setPracticeStarted] = useState(false);
   const [score, setScore] = useState(0);
+  const [scoreList, setScoreList] = useState([]);
+  const [timingOffsets, setTimingOffsets] = useState([]);
+
 
   const practiceMode = difficulty;
   const prevFingerStatus = useRef({});
@@ -229,9 +232,27 @@ function Piano() {
                 containerHeight={containerHeight}
                 pressedNotes={pressedNotes}
                 practiceMode={practiceMode}
-                onScore={incrementScore}
+                onScore={(incrementScore, offsetMs) => {
+                  setScore(prev => prev + incrementScore);
+                  setScoreList(prev => [...prev, incrementScore])
+                  setTimingOffsets(prev => [...prev, offsetMs]);
+                }}
                 onEnd={(id) => {
-                  setFallingNotes(prev => prev.filter(note => note.id !== id));
+                  setFallingNotes(prev => {
+                    const updated = prev.filter(note => note.id !== id);
+                    if (updated.length === 0) {
+                      setTimeout(function () {
+                        navigate('/results', { 
+                          state: { 
+                            score, 
+                            timingOffsets, 
+                            scores: scoreList,
+                          } 
+                        });
+                      }, 1500);
+                    }
+                    return updated;
+                  });
                 }}
               />
             ))}
