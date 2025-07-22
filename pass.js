@@ -21,7 +21,9 @@ function Piano() {
   const [fingerColors, setFingerColors] = useState({
     thumb: "#cccccc", index: "#cccccc", middle: "#cccccc", ring: "#cccccc", pinky: "#cccccc"
   });
-  const [fingerStatus, setFingerStatus] = useState({});
+  const [fingerStatus, setFingerStatus] = useState({
+    thumb: false, index: false, middle: false, ring: false, pinky: false  
+  });
   const [fallingNotes, setFallingNotes] = useState([]);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
@@ -53,7 +55,8 @@ function Piano() {
     connectMQTT(data => {
       setFingerStatus(data);
       prevFingerStatus.current = data;
-      console.log(data);
+      console.log ("Datos del Broker", data)
+      console.log("FingerStatus", fingerStatus);
     });
 
     // Centrar en do4 al cargar
