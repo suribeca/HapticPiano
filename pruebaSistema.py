@@ -7,7 +7,7 @@ sensors = [
     ADC(Pin(27)),  # Sensor 2
     ADC(Pin(26)),  # Sensor 3
     Pin(22, Pin.IN, Pin.PULL_DOWN),  # Sensor 4 (digital)
-    Pin(21, Pin.IN, Pin.PULL_DOWN)   # Sensor 5
+    Pin(21, Pin.IN, Pin.PULL_DOWN)   # Sensor 5 (digital)
 ]
 
 # LEDs RGB
@@ -19,7 +19,7 @@ leds = [
     [PWM(Pin(13)), PWM(Pin(14)), PWM(Pin(15))]    # LED 5
 ]
 
-# Motores (GPIO 16–20)
+# Motores conectados a GPIO 16–20 (orden físico)
 motors = [
     Pin(16, Pin.OUT),  # Motor 1
     Pin(17, Pin.OUT),  # Motor 2
@@ -28,19 +28,22 @@ motors = [
     Pin(20, Pin.OUT)   # Motor 5
 ]
 
-# Configurar frecuencia de PWM para LEDs
+# Mapeo lógico de motores según conexión física del guante
+# Posición i del sensor → índice del motor
+motor_mapping = [3, 4, 1, 0, 2]
+
+# Configurar frecuencia PWM para LEDs
 for led in leds:
     for color in led:
         color.freq(1000)
 
-# Colores (Rojo → Verde → Azul)
+# Colores: rojo → verde → azul
 colors = [
     (65535, 0, 0),   # Rojo
     (0, 65535, 0),   # Verde
     (0, 0, 65535)    # Azul
 ]
 
-# Funciones auxiliares
 def set_led_color(led, r, g, b):
     led[0].duty_u16(r)
     led[1].duty_u16(g)
@@ -54,23 +57,23 @@ color_index = 0
 
 while True:
     for i in range(5):
-        # Verifica si el sensor está activo
         if i < 3:
-            active = sensors[i].read_u16() > 30000  # Analógico
+            active = sensors[i].read_u16() > 30000
         else:
-            active = sensors[i].value() == 1        # Digital
+            active = sensors[i].value() == 1
+
+        motor_index = motor_mapping[i]
 
         if active:
-            # LED animado
+            # LEDs animados
             r, g, b = colors[color_index]
             set_led_color(leds[i], r, g, b)
 
-            # Encender motor correspondiente
-            motors[i].value(1)
+            # Motor correspondiente
+            motors[motor_index].value(1)
         else:
             turn_off_led(leds[i])
-            motors[i].value(0)
+            motors[motor_index].value(0)
 
-    # Avanza al siguiente color
     color_index = (color_index + 1) % len(colors)
-    time.sleep(0.5)
+    time.sleep(0.1)
