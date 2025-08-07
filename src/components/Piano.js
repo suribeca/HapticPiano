@@ -16,12 +16,14 @@ function Piano() {
   const navigate = useNavigate();
   const { mode = 'cancion', song = 'ode', difficulty = 'practica' } = location.state || {};
 
-  // Estados del componente
+  // Estados del componente y variables globales
   const [pressedNotes, setPressedNotes] = useState([]);
   const [fingerColors, setFingerColors] = useState({
     thumb: "#cccccc", index: "#cccccc", middle: "#cccccc", ring: "#cccccc", pinky: "#cccccc"
   });
-  const [fingerStatus, setFingerStatus] = useState({});
+  const [fingerStatus, setFingerStatus] = useState({
+    thumb: false, index: false, middle: false, ring: false, pinky: false
+  });
   const [fallingNotes, setFallingNotes] = useState([]);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
@@ -29,7 +31,6 @@ function Piano() {
   const [score, setScore] = useState(0);
   const [scoreList, setScoreList] = useState([]);
   const [timingOffsets, setTimingOffsets] = useState([]);
-
 
   const practiceMode = difficulty;
   const prevFingerStatus = useRef({});
@@ -41,18 +42,24 @@ function Piano() {
 
   // Al montar: configurar MIDI, MQTT y notas
   useEffect(() => {
+
+    //Control para evitar errores si no hay canción o dificultad
     if (!song || !difficulty) {
       navigate('/practica');
       return;
-    }
 
+    }
+    // Configuración de acceso MIDI
     if (navigator.requestMIDIAccess) {
       navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
     }
 
+    // Conexión al broker MQTT
     connectMQTT(data => {
       setFingerStatus(data);
       prevFingerStatus.current = data;
+      console.log("Datos del Broker", data)
+      console.log("FingerStatus", fingerStatus);
     });
 
     // Centrar en do4 al cargar
@@ -87,7 +94,7 @@ function Piano() {
     console.error("No se pudo acceder a dispositivos MIDI.");
   };
 
-  // Manejo de eventos MIDI (teclas presionadas/liberadas)
+  ////// Manejo de eventos MIDI (teclas presionadas/liberadas) ////////
   const handleMIDIMessage = ({ data }) => {
     const [status, noteNumber, velocity] = data;
     const isNoteOn = status === 144 && velocity > 0;
@@ -96,35 +103,109 @@ function Piano() {
     const noteName = MIDI_TO_NOTE[noteNumber];
     if (!noteName) return;
 
-    const scheduleFeedback = () => {
+
+    const scheduleFeedback = (noteName) => {
       setTimeout(() => {
         const feedback = {};
+
         for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
-          const pressed = fingerStatus[finger] || false;
+          const pressed = prevFingerStatus.current[finger] || false;
           feedback[finger] = {
             pressed,
             color: pressed ? "#00ff00" : "#cccccc",
             freq: pressed ? noteToFreq(noteName) : 0
           };
         }
+
         if (!_.isEqual(feedback, lastPublishedState.current)) {
+          console.log("✅ Publicando feedback: ", feedback);
           publishFeedback(feedback);
           lastPublishedState.current = feedback;
         }
-      }, 80);
+      }, 0);
+    };
+
+
+
+    // Esperar a que cambie el estado de los dedos antes de publicar feedback
+    const waitForFingerChange = (initialStatus, noteName, noteNumber) => {
+      const maxRetries = 5;
+      let attempts = 0;
+
+      const interval = setInterval(() => {
+        attempts++;
+        const currentStatus = prevFingerStatus.current;
+
+        if (!_.isEqual(currentStatus, initialStatus)) {
+          clearInterval(interval);
+          scheduleFeedback(noteName);
+        } else if (attempts >= maxRetries) {
+          clearInterval(interval);
+          console.warn("⚠ No hubo cambio en el estado de dedos tras evento MIDI.");
+        }
+      }, 50);
     };
 
     if (isNoteOn) {
       setPressedNotes(prev => [...prev, noteName]);
       playNote(noteName);
-      scheduleFeedback();
+      waitForFingerChange(prevFingerStatus.current, noteName, noteNumber);
     }
 
     if (isNoteOff) {
       setPressedNotes(prev => prev.filter(n => n !== noteName));
-      scheduleFeedback();
+      waitForFingerChange(prevFingerStatus.current, noteName, noteNumber);
     }
+
   };
+
+  ///////////////////////////////////////////////////////////////////
+  /*   OG
+  
+    const handleMIDIMessage = ({ data }) => {
+      // Datos MIDI: [status, noteNumber, velocity]
+      const [status, noteNumber, velocity] = data;
+      const isNoteOn = status === 144 && velocity > 0;
+      const isNoteOff = status === 128 || (status === 144 && velocity === 0);
+  
+      const noteName = MIDI_TO_NOTE[noteNumber];
+      if (!noteName) return;
+     // Actualizar estado de las notas presionadas 
+      const scheduleFeedback = () => {
+        setTimeout(() => {
+          const feedback = {};
+          for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
+            const pressed = prevFingerStatus.current[finger] || false;
+            feedback[finger] = {
+              pressed,
+              color: pressed ? "#00ff00" : "#cccccc",
+              freq: pressed ? noteToFreq(noteName) : 0
+            };
+          }
+          if (!_.isEqual(feedback, lastPublishedState.current)) {
+            console.log("Publicando feedback: ", feedback);
+            publishFeedback(feedback);
+            lastPublishedState.current = feedback;
+          }
+        }, 80);
+      };
+  
+      if (isNoteOn) {
+        setPressedNotes(prev => [...prev, noteName]);
+        playNote(noteName);
+        scheduleFeedback();
+      }
+  
+      if (isNoteOff) {
+        setPressedNotes(prev => prev.filter(n => n !== noteName));
+        scheduleFeedback();
+      }
+    };
+  
+  
+  
+  */
+  ////////////////////////////////////////////////////////////
 
   // Frecuencia háptica por nota
   const noteToFreq = (noteName) => {
@@ -173,6 +254,12 @@ function Piano() {
     return match && parseInt(match[0]) <= 6;
   });
 
+
+  /*
+  *
+  *  Renderizado del componente Piano
+  * 
+  */
   const keyWidth = 40;
   const containerHeight = 350;
 
@@ -242,12 +329,12 @@ function Piano() {
                     const updated = prev.filter(note => note.id !== id);
                     if (updated.length === 0) {
                       setTimeout(function () {
-                        navigate('/results', { 
-                          state: { 
-                            score, 
-                            timingOffsets, 
+                        navigate('/results', {
+                          state: {
+                            score,
+                            timingOffsets,
                             scores: scoreList,
-                          } 
+                          }
                         });
                       }, 1500);
                     }
