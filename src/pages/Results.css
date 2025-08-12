@@ -65,3 +65,18 @@
 .green { background-color: #ccffcc; }
 .yellow { background-color: #ffffcc; }
 .red { background-color: #ffcccc; }
+
+
+.grade {
+    font-weight: bold;
+    font-size: 1.8em;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.grade-s { color: gold; }
+.grade-a { color: #00cc00; }
+.grade-b { color: #3399ff; }
+.grade-c { color: #ffaa00; }
+.grade-d { color: #ff6600; }
+.grade-f { color: #cc0000; }

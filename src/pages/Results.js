@@ -27,6 +27,23 @@ function Results() {
         0: scores.filter(s => s === 0).length,
     };
 
+    // Función para calcular calificación tipo OSU
+    function getGrade(score, maxScore, scores) {
+        const allPerfect = scores.length > 0 && scores.every(s => s === 100);
+        if (allPerfect) return 'S';
+
+        const percent = (score / maxScore) * 100;
+
+        if (percent >= 90) return 'A';
+        if (percent >= 80) return 'B';
+        if (percent >= 70) return 'C';
+        if (percent >= 60) return 'D';
+        return 'F';
+    }
+
+    const grade = getGrade(score, maxScore, scores);
+
+    // Función para colorear puntos según precisión
     const renderDot = (props) => {
         const { cx, cy, payload } = props;
         const offset = Math.abs(payload.offset);
@@ -74,6 +91,9 @@ function Results() {
         <div className="results-container">
             <h1>🎉 ¡Has terminado!</h1>
             <p>Tu puntuación: <strong>{score}</strong></p>
+            <p className={`grade grade-${grade.toLowerCase()}`}>
+                Calificación: <strong>{grade}</strong>
+            </p>
 
             <div className="chart-wrapper">
                 <h2>Precisión (en milisegundos)</h2>
@@ -106,11 +126,10 @@ function Results() {
                     />
                 </LineChart>
 
-                {/* Leyenda */}
                 <div className="legend">
                     <p><span className="legend-box green"></span>Perfecto (±25ms)</p>
                     <p><span className="legend-box yellow"></span>Leve error (±100ms)</p>
-                    <p><span className="legend-box red"></span>Fallo (&gt;100ms)</p>
+                    <p><span className="legend-box red"></span>Error grave (&gt;100ms)</p>
                 </div>
             </div>
 
