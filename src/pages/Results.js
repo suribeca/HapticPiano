@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ReferenceArea
 } from 'recharts';
 import { useState, useEffect } from 'react';
 import './Results.css';
@@ -14,25 +14,61 @@ function Results() {
     const scores = location.state?.scores ?? [];
     const [value, setValue] = useState(0);
 
-    // Estructura para gráfica: [{index: 0, offset: -25}, ...]
+    const maxScore = timingOffsets.length * 100;
+
     const data = timingOffsets.map((offset, i) => ({
         index: i + 1,
         offset: parseFloat(offset.toFixed(1)),
     }));
 
-    // Contar ocurrencias
     const counts = {
         100: scores.filter(s => s === 100).length,
         50: scores.filter(s => s === 50).length,
         0: scores.filter(s => s === 0).length,
     };
 
-    const Playit = () => {
-        var audio = new Audio("/sounds/applauseCheer.mp3");
-        audio.play().catch(() => { console.warn("Autoplay bloqueado"); });
-    };
-    useEffect(() => { Playit() }, []);
+    const renderDot = (props) => {
+        const { cx, cy, payload } = props;
+        const offset = Math.abs(payload.offset);
 
+        let color = '#00ff00'; // Verde
+        if (offset > 100) {
+            color = '#ff0000'; // Rojo
+        } else if (offset > 25) {
+            color = '#ffff00'; // Amarillo
+        }
+
+        return (
+            <circle
+                cx={cx}
+                cy={cy}
+                r={4}
+                stroke="black"
+                strokeWidth={0.5}
+                fill={color}
+            />
+        );
+    };
+
+    useEffect(() => {
+        fetch('http://localhost:4000/api/save-results', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                score,
+                maxScore,
+                timingOffsets,
+                scores,
+                songName: 'ode',
+                difficulty: 'practica'
+            }),
+        })
+            .then(res => {
+                if (!res.ok) throw new Error("Error al guardar resultados");
+                console.log("✅ Resultados enviados");
+            })
+            .catch(err => console.error(err));
+    }, []);
 
     return (
         <div className="results-container">
@@ -51,18 +87,33 @@ function Results() {
                     <XAxis dataKey="index" label={{ value: "Nota", position: "insideBottom", offset: -5 }} />
                     <YAxis domain={[-200, 200]} label={{ value: "Offset (ms)", angle: -90, position: "insideLeft" }} />
                     <Tooltip formatter={(value) => `${value} ms`} />
+
+                    {/* Zonas de precisión */}
+                    <ReferenceArea y1={-200} y2={-100} fill="#ffcccc" fillOpacity={0.3} />
+                    <ReferenceArea y1={-100} y2={-25} fill="#ffffcc" fillOpacity={0.3} />
+                    <ReferenceArea y1={-25} y2={25} fill="#ccffcc" fillOpacity={0.3} />
+                    <ReferenceArea y1={25} y2={100} fill="#ffffcc" fillOpacity={0.3} />
+                    <ReferenceArea y1={100} y2={200} fill="#ffcccc" fillOpacity={0.3} />
+
                     <ReferenceLine y={0} stroke="red" strokeDasharray="3 3" />
+
                     <Line
                         type="monotone"
                         dataKey="offset"
-                        stroke="#00ff00"
-                        dot={{ r: 2 }}
+                        stroke="#888888"
                         strokeWidth={2}
+                        dot={renderDot}
                     />
                 </LineChart>
+
+                {/* Leyenda */}
+                <div className="legend">
+                    <p><span className="legend-box green"></span>Perfecto (±25ms)</p>
+                    <p><span className="legend-box yellow"></span>Leve error (±100ms)</p>
+                    <p><span className="legend-box red"></span>Fallo (&gt;100ms)</p>
+                </div>
             </div>
 
-            {/* Tabla de precisión */}
             <div className="score-table">
                 <h2>Resumen de precisión</h2>
                 <table>
