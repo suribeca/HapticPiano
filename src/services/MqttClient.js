@@ -1,85 +1,111 @@
-// Importa la librería MQTT.js para conectarte a un broker MQTT desde el navegador
-import mqtt from 'mqtt';
+// src/services/MqttClient.js
+// Cliente MQTT para front-end (React) usando MQTT.js y WebSockets contra Mosquitto.
+// - Se conecta a un broker por WS (puerto 9001 típico en Mosquitto).
+// - Se suscribe a 'picow/fingers' (estados que publica la Pico).
+// - Publica a 'web/pressed' (feedback de color/frecuencia para la Pico).
+// - Expone helpers: connectMQTT, publishFeedback, disconnectMQTT.
 
-// Variable para almacenar la instancia del cliente MQTT
+import mqtt from "mqtt";
+
+// Guardamos una referencia única al cliente para evitar conexiones duplicadas.
 let client = null;
 
 /**
- * Función para conectar al broker MQTT usando WebSockets seguros.
- * Se utiliza HiveMQ Cloud como servidor.
- * 
- * Además esta función se suscribe al tópico 'picow/fingers' que recibe los datos del Raspberry Pi Pico W 
- * 
- * @param {function} onMessageCallback - Función callback que se ejecuta cuando se recibe un mensaje MQTT válido.
- * El mensaje se entrega como objeto JavaScript (ya parseado desde JSON).
+ * Conecta al broker MQTT (WebSockets) y registra un callback para mensajes entrantes.
+ * @param {Function} onMessage - callback que recibe los datos del topic 'picow/fingers'
+ *                               (objeto con {thumb:boolean, index:boolean, ...})
  */
-export function connectMQTT(onMessageCallback) {
-  // Si ya hay una conexión activa, no vuelve a conectar
-  if (client) return;
+export function connectMQTT(onMessage) {
+  // Si ya existe un cliente y está conectado, lo reutilizamos.
+  if (client?.connected) return client;
 
-  // Opciones de configuración para la conexión segura con HiveMQ Cloud
-  const options = {
-    username: 'PianoBroker',            // Usuario del broker
-    password: 'PapaPitufo420',          // Contraseña del broker
-    protocol: 'wss',                    // Usamos WebSockets seguros
-    port: 8884,                         // Puerto para WSS
-    connectTimeout: 4000,               // Tiempo máximo para intentar conexión (ms)
-    clean: true,                        // Sesión limpia (no guarda historial previo)
-    reconnectPeriod: 1000,              // Reintenta conexión cada 1 segundo si se pierde
-  };
+  // URL del broker en WebSockets: la traemos de .env (REACT_APP_MQTT_URL) o usamos localhost por defecto.
+  // Ejemplo de .env: REACT_APP_MQTT_URL=ws://192.168.1.50:9001
+  const url = process.env.REACT_APP_MQTT_URL || "ws://localhost:9001";
 
-  // Conecta al broker especificando la URL completa del endpoint WSS + opciones
-  client = mqtt.connect('wss://dae3db229f2d427b820bf6346fece546.s1.eu.hivemq.cloud:8884/mqtt', options);
+  // Creamos la conexión con MQTT.js. Como es WS, NO hacen falta credenciales ni TLS en LAN.
+  client = mqtt.connect(url, {
+    protocol: "ws",      // Forzamos protocolo WebSockets (imprescindible en navegador).
+    clean: true,         // Sesión limpia: no reanuda suscripciones pendientes del lado del broker.
+    connectTimeout: 4000,// Tiempo máximo para establecer conexión (ms).
+    reconnectPeriod: 1000// Si se cae, intenta reconectar cada 1s.
+    // Opcionales útiles:
+    // queueQoSZero: false, // NO bufferizar mensajes QoS0 si estamos desconectados (latencia > fiabilidad).
+  });
 
-  // Cuando se establece la conexión exitosamente
-  client.on('connect', () => {
-    console.log('Conectado a MQTT');
+  // Evento: conexión establecida con el broker.
+  client.on("connect", () => {
+    console.log("✅ Conectado a Mosquitto (WS):", url);
 
-    // Se suscribe al topic desde donde la Raspberry publicará los datos de los dedos
-    client.subscribe('picow/fingers', (err) => {
-      if (err) {
-        console.error('Error al suscribirse:', err);
-      }
+    // Nos suscribimos al topic donde la Pico publica el estado de sus sensores (dedos).
+    client.subscribe("picow/fingers", (err) => {
+      if (err) console.error("Error al suscribirse:", err);
+      // Nota: si quisieras más topics, se pueden agregar aquí.
     });
   });
 
-  // Cuando se recibe un mensaje desde el broker en un topic suscrito
-  client.on('message', (topic, message) => {
-    try {
-      // Intenta convertir el mensaje de texto a objeto JSON
-      const data = JSON.parse(message.toString());
+  // Evento: recepción de mensajes. Llega para TODOS los topics suscritos.
+  client.on("message", (topic, payload) => {
+    // Solo procesamos el topic que nos interesa en este cliente.
+    if (topic !== "picow/fingers") return;
 
-      // Llama al callback proporcionado para que el resto del sistema lo use
-      if (onMessageCallback) {
-        onMessageCallback(data);
-      }
-    } catch (error) {
-      console.error('Error al parsear mensaje:', error);
+    try {
+      // La Pico publica JSON con booleanos por dedo, lo parseamos.
+      // Ej: {"thumb":true,"index":false,"middle":true,"ring":false,"pinky":false}
+      const data = JSON.parse(payload.toString());
+
+      // Disparamos el callback recibido desde Piano.js (si existe).
+      onMessage && onMessage(data);
+    } catch (e) {
+      console.error("Error al parsear MQTT:", e);
     }
   });
 
-  // Si ocurre un error con la conexión al broker
-  client.on('error', (err) => {
-    console.error('Error en MQTT:', err);
-  });
+  // Evento: errores de red o del broker (útil para debug).
+  client.on("error", (err) => console.error("MQTT error:", err));
+
+  // Checar eventos: 
+  // client.on("reconnect", () => console.log("Reconectando a MQTT..."));
+  // client.on("close", () => console.log("Conexión MQTT cerrada"));
+  // client.on("offline", () => console.log("MQTT offline"));
+
+  return client;
 }
 
 /**
- * Publica el estado completo de todos los dedos al broker.
- * @param {Object} fingerStates - Objeto con el estado de cada dedo (pressed + color)
+ * Publica feedback para la Pico en el topic 'web/pressed'.
+ * @param {Object} fingerStates - Mapa por dedo con { pressed, color, freq }.
+ *   Ej:
+ *   {
+ *     "thumb":  { pressed: true,  color:"#00ff00", freq:50000 },
+ *     "index":  { pressed: false, color:"#cccccc", freq:0 },
+ *     "middle": { pressed: true,  color:"#00ff00", freq:52000 },
+ *     ...
+ *   }
+ * - 'pressed' lo usa el front para decidir color/intensidad; en la Pico la DECISIÓN final de encendido depende del sensor físico (baja latencia).
+ * - 'color' es #RRGGBB (la Pico lo convierte a 16 bits por canal).
+ * - 'freq' mapea a duty_u16 (0..65535) del PWM del motor (intensidad háptica).
  */
 export function publishFeedback(fingerStates) {
+  // Si la conexión no está lista, evitamos publicar (y avisamos).
   if (!client || !client.connected) {
-    console.warn('Cliente MQTT no conectado');
+    console.warn("MQTT no conectado");
     return;
   }
-  const payload = JSON.stringify(fingerStates);
 
-  client.publish('web/pressed', payload, { qos: 0 }, (err) => {
-    if (err) {
-      console.error('Error al publicar estado completo:', err);
-    } else {
-      console.log(`Publicado estado completo: ${payload}`);
-    }
-  });
+  // Publicamos con QoS 0 (rápido, sin confirmación). Perfecto para feedback en tiempo real.
+  client.publish("web/pressed", JSON.stringify(fingerStates), { qos: 0 });
+}
+
+/**
+ * Cierra la conexión MQTT (se recomienda al desmontar el componente o salir de la vista).
+ */
+export function disconnectMQTT() {
+  if (client) {
+    try {
+      // end(true) corta inmediatamente sin esperar ACKs; ideal para cerrar al navegar.
+      client.end(true);
+    } catch {}
+    client = null;
+  }
 }
