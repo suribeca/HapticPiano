@@ -9,8 +9,8 @@ from machine import ADC, Pin, PWM
 from umqtt.simple import MQTTClient
 
 # ---------- WiFi / MQTT ----------
-WIFI_SSID = 'ITAM'           
-WIFI_PASS = ''           
+WIFI_SSID = ''
+WIFI_PASS = ''      
 BROKER_IP = '192.168.XXX.X'      # <-- IP 
 BROKER_PORT = 1883
 
