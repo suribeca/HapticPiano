@@ -1,0 +1,77 @@
+.howto-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  backdrop-filter: blur(2px);
+  background: rgba(0,0,0,0.45);
+  z-index: 9999;
+}
+.howto-overlay.open {
+  display: grid;
+}
+
+.howto-dialog {
+  width: min(720px, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+  background: #1f1f22;
+  color: #fff;
+  border: 1px solid #2d2f34;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 10px 35px rgba(0,0,0,0.5);
+}
+
+.howto-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 1.6rem;
+  color: #19a7ff;
+}
+
+.howto-block {
+  margin-top: 14px;
+  background: #24262a;
+  border: 1px solid #2e3136;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.howto-block h3 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  color: #bfe8ff;
+}
+
+.howto-list {
+  padding-left: 1.2rem;
+  margin: 6px 0 8px;
+}
+.howto-list li {
+  margin: 4px 0;
+}
+
+.howto-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dontshow {
+  font-size: 0.95rem;
+  color: #cfd3da;
+}
+
+.howto-primary {
+  background: #19a7ff;
+  color: #fff;
+  border: 0;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.howto-primary:hover { filter: brightness(1.05); }
