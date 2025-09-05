@@ -1,36 +1,25 @@
 .home {
-  display: flex;
-  flex-direction: row;
-  height: 100vh;
   width: 100%;
   background-color: #1f1f22;
   color: white;
   font-family: 'Segoe UI', sans-serif;
+  overflow-x: hidden;
 }
 
-.left {
-  flex: 1;
-  background-color: #2c2f36;
+/* Secciones scrolleables */
+.section {
+  position: relative;
+  min-height: 100vh; /* ocupa toda la pantalla */
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  padding: 4rem 2rem;
+  text-align: center;
 }
 
-.image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: brightness(0.85);
-}
-
-.right {
-  flex: 1;
-  padding: 5rem 4rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  background-color: #1f1f22;
+.content {
+  max-width: 800px;
+  z-index: 2; /* por encima de imágenes de fondo */
 }
 
 .title {
@@ -41,38 +30,58 @@
 }
 
 .subtitle {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   color: #cccccc;
-  margin-bottom: 2.5rem;
   line-height: 1.6;
 }
 
+/* HERO con imagen de fondo */
+.hero {
+  position: relative;
+  color: white;
+}
+.background-image {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: brightness(0.4);
+  z-index: 1;
+}
+
+/* Misión */
+.mission {
+  background: linear-gradient(135deg, #1f1f22 0%, #2a2d33 100%);
+}
+
+/* Opciones */
+.options {
+  background-color: #1f1f22;
+}
 .buttons {
   display: flex;
   gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
 }
-
 .buttons button {
   font-size: 1rem;
   padding: 0.8rem 2rem;
-  border: none;
   border-radius: 8px;
   cursor: pointer;
   transition: 0.2s ease;
 }
-
 .buttons button:first-child {
   background-color: #19a7ff;
   color: white;
   font-weight: bold;
+  border: none;
 }
-
 .buttons .outline {
   background-color: transparent;
   border: 2px solid #19a7ff;
   color: #19a7ff;
 }
-
 .buttons .outline:hover {
   background-color: #19a7ff10;
 }

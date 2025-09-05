@@ -1,65 +1,67 @@
 // src/components/Piano.js
-// Componente principal del piano.
-// - Se conecta a MQTT (picow/fingers <- del guante | web/pressed -> al guante)
-// - Escucha MIDI y publica feedback inmediato (baja latencia).
-// - Muestra un pop-up de instrucciones antes de comenzar.
-// - Visualiza mano, teclado y (opcionalmente) notas que caen en modo "cancion".
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import './Piano.css';
-import { Key } from './Key';
-import { Hand } from './Hand';
+import { Key } from './Key.js';
+import { Hand } from './Hand.js';
 import { NOTES, MIDI_TO_NOTE } from '../global/constants';
-import { connectMQTT, publishFeedback, disconnectMQTT } from '../services/MqttClient';
+import { connectMQTT, publishFeedback } from '../services/MqttClient';
 import { FallingNote } from './FallingNote';
 import './FallingNote.css';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
+import _ from 'lodash';
 
 function Piano() {
-  // ===== Navegación / modo =====
   const location = useLocation();
   const navigate = useNavigate();
   const { mode = 'cancion', song = 'ode', difficulty = 'practica' } = location.state || {};
 
-  // ===== Estado UI =====
-  const [pressedNotes, setPressedNotes] = useState([]);   // notas activas en el teclado renderizado
-  const [fingerStatus, setFingerStatus] = useState({      // reporte del guante (MQTT picow/fingers)
+  // ------------------ Estado UI ------------------
+  const [pressedNotes, setPressedNotes] = useState([]);
+  const [fingerColors] = useState({
+    thumb: "#cccccc", index: "#cccccc", middle: "#cccccc", ring: "#cccccc", pinky: "#cccccc"
+  });
+  const [fingerStatus, setFingerStatus] = useState({
     thumb: false, index: false, middle: false, ring: false, pinky: false
   });
-  const [fallingNotes, setFallingNotes] = useState([]);   // notas para el modo "cancion"
-  const [practiceStarted, setPracticeStarted] = useState(false);
+  const [fallingNotes, setFallingNotes] = useState([]);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdown, setCountdown] = useState(3);
-
-  // Pop-up de instrucciones: visible al montar (hasta que el usuario lo cierre)
-  const [showHowTo, setShowHowTo] = useState(true);
-
-  // Scoring (si tu flujo lo usa)
+  const [practiceStarted, setPracticeStarted] = useState(false);
   const [score, setScore] = useState(0);
   const [scoreList, setScoreList] = useState([]);
   const [timingOffsets, setTimingOffsets] = useState([]);
 
-  // ===== Refs (evitan “stale closures”) =====
-  const prevFingerStatus = useRef(fingerStatus);  // último estado de dedos conocido
-  const pianoContainerRef = useRef(null);         // para centrar el scroll en do4
-  const audioRefs = useRef({});                   // <audio> precargados
+  // Modal: visible al cargar. Se cierra sólo cuando la persona pulsa “Entendido”
+  const [showInstructions, setShowInstructions] = useState(true);
 
-  // ===== Efecto de montaje: MQTT, MIDI, centrar, cargar canción =====
+  // ------------------ Refs ------------------
+  const practiceMode = difficulty;
+  const prevFingerStatus = useRef({});
+  const lastPublishedState = useRef({});
+  const pianoContainerRef = useRef(null);
+  const audioRefs = useRef({});
+  const incrementScore = (total) => setScore(prev => prev + total);
+
+  // ------------------ Mount: MIDI, MQTT, Canción, Scroll inicial ------------------
   useEffect(() => {
-    // 1) Conectar a MQTT (WS) y escuchar estado del guante
-    const client = connectMQTT((data) => {
-      // data: {thumb:boolean, index:boolean, ...}
-      setFingerStatus(data);
-      prevFingerStatus.current = data; // mantener ref sincronizada
-    });
+    if (!song || !difficulty) {
+      navigate('/practica');
+      return;
+    }
 
-    // 2) MIDI
+    // MIDI
     if (navigator.requestMIDIAccess) {
       navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
     }
 
-    // 3) Centrar el teclado en do4
+    // MQTT
+    connectMQTT(data => {
+      setFingerStatus(data);
+      prevFingerStatus.current = data;
+    });
+
+    // Centrar en DO4 tras montar
     setTimeout(() => {
       const container = pianoContainerRef.current;
       const do4Key = document.getElementById('do4');
@@ -69,23 +71,18 @@ function Piano() {
       }
     }, 300);
 
-    // 4) Cargar canción (solo si usas modo "cancion")
+    // Cargar notas de la canción seleccionada
     const fileName = `${song}${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}.json`;
     fetch(`/songs/${fileName}`)
       .then(res => res.json())
-      .then(data => setFallingNotes(data.map(n => ({ ...n, id: uuidv4() }))))
+      .then(data => {
+        const withIds = data.map(note => ({ ...note, id: uuidv4() }));
+        setFallingNotes(withIds);
+      })
       .catch(err => console.error('Error al cargar notas JSON:', err));
+  }, []); // eslint-disable-line
 
-    // Limpieza
-    return () => {
-      disconnectMQTT();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ===== MIDI =====
-
-  // Registra handler MIDI en todos los inputs
+  // ------------------ MIDI ------------------
   const onMIDISuccess = useCallback((midiAccess) => {
     for (let input of midiAccess.inputs.values()) {
       input.onmidimessage = handleMIDIMessage;
@@ -96,79 +93,74 @@ function Piano() {
     console.error("No se pudo acceder a dispositivos MIDI.");
   };
 
-  // Mapeo de nota → duty_u16 (0..65535): graves vibran más, agudas menos
-  function noteToDuty(noteName) {
-    const idx = NOTES.indexOf(noteName);
-    if (idx < 0) return 0;
-    const lo = 24000;  // intensidad mínima (agudas)
-    const hi = 62000;  // intensidad máxima (graves)
-    const t = idx / (NOTES.length - 1);
-    return Math.round(hi - (hi - lo) * t); // invertimos para graves=alto duty
-  }
+  // Nota MIDI -> frecuencia/intensidad háptica (map simple grave→fuerte, agudo→suave)
+  const noteToFreq = (noteName) => {
+    const index = NOTES.indexOf(noteName);
+    if (index === -1) return 0;
+    const ratio = index / NOTES.length;
+    // 20000..65500 (lineal). Si prefieres desactivar variación, fija un valor (p.ej. 45000)
+    return Math.round(65500 - (ratio * (65500 - 20000)));
+  };
 
-  // Reproducir sample local (si lo usas)
+  // Reproducir audio HTML precargado
   const playNote = (note) => {
-    // Corrección de naming si tus audios están desplazados en ciertas notas
-    const m = note.match(/^(la|zla|si)(\d)$/);
-    let fixed = note;
-    if (m) {
-      const [, base, octave] = m;
-      fixed = `${base}${parseInt(octave) + 1}`;
+    const match = note.match(/^(la|zla|si)(\d)$/);
+    let correctedNote = note;
+    if (match) {
+      const [, base, octave] = match;
+      correctedNote = `${base}${parseInt(octave) + 1}`;
     }
-    const el = audioRefs.current[fixed];
-    if (el && el instanceof HTMLAudioElement) {
-      el.currentTime = 0;
-      el.play().catch(() => {});
+    const audio = audioRefs.current[correctedNote];
+    if (audio && audio instanceof HTMLAudioElement) {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
     }
   };
 
-  // Publica feedback inmediato (sin timers) con el ÚLTIMO estado de cada dedo
+  // Publica a MQTT el estado actual de dedos tras cada NoteOn/NoteOff
   const publishImmediateFeedback = (noteName) => {
-    const duty = noteToDuty(noteName);
-    const fingers = ["thumb", "index", "middle", "ring", "pinky"];
-    const last = prevFingerStatus.current;
-
-    // Para cada dedo: si está presionado físicamente, mandamos {pressed:true, color verde, freq=duty}
-    // Si no, {pressed:false, color gris, freq:0}. El Pico decide qué hacer (y ya enciende verde local).
-    const payload = {};
-    for (const f of fingers) {
-      const pressed = !!last[f];
-      payload[f] = {
+    const feedback = {};
+    for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
+      const pressed = prevFingerStatus.current[finger] || false;
+      feedback[finger] = {
         pressed,
         color: pressed ? "#00ff00" : "#cccccc",
-        freq:  pressed ? duty : 0
+        freq: pressed ? noteToFreq(noteName) : 0
       };
     }
-    publishFeedback(payload);
+    if (!_.isEqual(feedback, lastPublishedState.current)) {
+      publishFeedback(feedback);
+      lastPublishedState.current = feedback;
+    }
   };
 
-  // Manejo de eventos MIDI
+  // MIDI handler
   const handleMIDIMessage = ({ data }) => {
     const [status, noteNumber, velocity] = data;
-    const isNoteOn  = status === 144 && velocity > 0;
+    const isNoteOn = status === 144 && velocity > 0;
     const isNoteOff = status === 128 || (status === 144 && velocity === 0);
     const noteName = MIDI_TO_NOTE[noteNumber];
     if (!noteName) return;
 
     if (isNoteOn) {
-      setPressedNotes(prev => [...prev, noteName]); // UI
-      playNote(noteName);                           // Audio local
-      publishImmediateFeedback(noteName);           // Feedback háptico inmediato
+      setPressedNotes(prev => [...prev, noteName]);
+      playNote(noteName);
+      publishImmediateFeedback(noteName);
     }
     if (isNoteOff) {
       setPressedNotes(prev => prev.filter(n => n !== noteName));
-      publishImmediateFeedback(noteName);           // mantener coherencia (p.ej. apagar duty si aplica)
+      publishImmediateFeedback(noteName);
     }
   };
 
-  // ===== Countdown / inicio =====
-  const comenzarPractica = () => {
+  // ------------------ Countdown ------------------
+  const startCountdown = () => {
     setShowCountdown(true);
     setCountdown(3);
-    const intv = setInterval(() => {
+    const interval = setInterval(() => {
       setCountdown(prev => {
         if (prev === 1) {
-          clearInterval(intv);
+          clearInterval(interval);
           setShowCountdown(false);
           setPracticeStarted(true);
         }
@@ -177,18 +169,17 @@ function Piano() {
     }, 1000);
   };
 
-  // ===== Filtrado de notas visibles en teclado (hasta octava 6) =====
+  // ------------------ Render ------------------
   const VISIBLE_NOTES = NOTES.filter(n => {
-    const m = n.match(/\d$/);
-    return m && parseInt(m[0], 10) <= 6;
+    const match = n.match(/\d$/);
+    return match && parseInt(match[0]) <= 6;
   });
 
   const containerHeight = 350;
 
-  // ===== Render =====
   return (
     <div style={{ backgroundColor: '#2b2d31', minHeight: '100vh' }}>
-      {/* Header superior con navegación y puntaje */}
+      {/* Top bar con puntaje */}
       <div className="topContainer">
         <div className="volver-wrapper">
           <button className="volver-btn" onClick={() => navigate('/')}>
@@ -200,86 +191,16 @@ function Piano() {
         </div>
       </div>
 
-      {/* Contenedor principal */}
       <div className="piano-container" ref={pianoContainerRef}>
-
-        {/* Visual de la mano: dedo activo en verde según fingerStatus */}
+        {/* Mano visual */}
         <div className="hand-wrapper">
-          <Hand fingerColors={{
-            thumb:  fingerStatus.thumb  ? "#00ff00" : "#cccccc",
-            index:  fingerStatus.index  ? "#00ff00" : "#cccccc",
-            middle: fingerStatus.middle ? "#00ff00" : "#cccccc",
-            ring:   fingerStatus.ring   ? "#00ff00" : "#cccccc",
-            pinky:  fingerStatus.pinky  ? "#00ff00" : "#cccccc",
-          }} />
+          <Hand fingerColors={fingerColors} />
         </div>
 
-        {/* ===== Pop-up de instrucciones ===== */}
-        {showHowTo && (
-          <div className="modal-overlay">
-            <div className="modal">
-              <h2>¿Cómo usar esta práctica?</h2>
+        {/* Línea de impacto (solo modo canción) */}
+        {mode === 'cancion' && <div className="impact-line"></div>}
 
-              {mode === 'cancion' ? (
-                <>
-                  <p>
-                    Las notas descenderán hasta sus teclas. Presiona la tecla cuando la nota
-                    toque la <span style={{ color: '#ff4d4d' }}>línea roja</span>.
-                  </p>
-                  <ul>
-                    <li>Exacto en la línea roja: <strong>100 puntos</strong></li>
-                    <li>Cerca de la línea: <strong>50 puntos</strong></li>
-                    <li>Muy temprano o muy tarde: <strong>0 puntos</strong></li>
-                  </ul>
-                  <p>
-                    En el guante: cuando el sensor de un dedo detecte presión, verás qué dedo
-                    fue y sentirás la vibración correspondiente.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    Modo demo: interactúa libremente. El guante marcará qué dedo presionas y
-                    vibrará el motor correspondiente (las notas no puntúan).
-                  </p>
-                </>
-              )}
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button
-                  className="modal-primary"
-                  onClick={() => setShowHowTo(false)}
-                >
-                  Entendido
-                </button>
-                {mode === 'cancion' && !practiceStarted && !showCountdown && (
-                  <button
-                    className="modal-secondary"
-                    onClick={() => { setShowHowTo(false); comenzarPractica(); }}
-                  >
-                    Entendido y comenzar
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Botón de inicio (cuando no hay pop-up) */}
-        {mode === 'cancion' && !practiceStarted && !showCountdown && !showHowTo && (
-          <div className="start-button-wrapper">
-            <button className="boton-practica" onClick={comenzarPractica}>
-              COMENZAR
-            </button>
-          </div>
-        )}
-
-        {/* Cuenta regresiva */}
-        {mode === 'cancion' && showCountdown && (
-          <div className="countdown-display">{countdown}</div>
-        )}
-
-        {/* Notas cayendo (solo si ya empezó la práctica) */}
+        {/* Notas descendentes (cuando inicia la práctica) */}
         {mode === 'cancion' && practiceStarted && (
           <div className="note-visualizer" style={{
             position: 'absolute',
@@ -298,7 +219,7 @@ function Piano() {
                 duration={3}
                 containerHeight={containerHeight}
                 pressedNotes={pressedNotes}
-                practiceMode={difficulty}
+                practiceMode={practiceMode}
                 onScore={(inc, offsetMs) => {
                   setScore(prev => prev + inc);
                   setScoreList(prev => [...prev, inc]);
@@ -322,17 +243,14 @@ function Piano() {
           </div>
         )}
 
-        {/* Línea de impacto en modo canción */}
-        {mode === 'cancion' && <div className="impact-line"></div>}
-
-        {/* Teclado visual */}
+        {/* Teclado */}
         <div className="piano">
-          {VISIBLE_NOTES.map((note, idx) => (
-            <Key key={idx} note={note} pressedKeys={pressedNotes} />
+          {VISIBLE_NOTES.map((note, index) => (
+            <Key key={index} note={note} pressedKeys={pressedNotes} />
           ))}
         </div>
 
-        {/* Audio precargado */}
+        {/* Audios precargados */}
         <div style={{ display: "none" }}>
           {NOTES.map((note, i) => (
             <audio
@@ -344,6 +262,71 @@ function Piano() {
           ))}
         </div>
       </div>
+
+      {/* ------------------ MODAL DE INSTRUCCIONES ------------------ */}
+      {showInstructions && (
+        <div className="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="howto-title">
+          <div className="modalCard">
+            <button
+              className="modalClose"
+              aria-label="Cerrar"
+              onClick={() => setShowInstructions(false)}
+            >
+              ×
+            </button>
+
+            <h2 id="howto-title" className="modalTitle">¿Cómo usar esta práctica?</h2>
+
+            {/* Texto distinto según el modo */}
+            {mode === 'cancion' ? (
+              <>
+                <p className="modalP">
+                  Las notas descenderán hasta sus teclas. Presiona la tecla cuando la nota toque la
+                  <span className="lineaRoja"> línea roja</span> y se prenda de color <span className="notaVerde">verde</span>.
+                </p>
+                <ul className="modalList">
+                  <li>Exacto en la línea roja: <strong>100 puntos</strong></li>
+                  <li>Cerca de la línea: <strong>50 puntos</strong></li>
+                  <li>Muy temprano o muy tarde: <strong>0 puntos</strong></li>
+                </ul>
+                <p className="modalP">
+                  En el guante: cuando el sensor detecte presión, verás qué dedo fue y sentirás la vibración correspondiente.
+                </p>
+                <div className="modalActions">
+                  <button
+                    className="btnPrimary"
+                    onClick={() => {
+                      setShowInstructions(false);
+                      startCountdown();
+                    }}
+                  >
+                    Entendido y comenzar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="modalP">
+                  <strong>Modo demo:</strong> interactúa libremente. El guante marcará qué dedo presionas
+                  y vibrará el motor correspondiente (no hay puntuación).
+                </p>
+                <div className="modalActions">
+                  <button className="btnPrimary" onClick={() => setShowInstructions(false)}>
+                    Entendido
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Cuenta regresiva (overlay simple) */}
+      {showCountdown && (
+        <div className="modalOverlay" aria-hidden="true">
+          <div className="countdownBubble">{countdown}</div>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,8 +11,8 @@ from umqtt.simple import MQTTClient
 
 # ----------- WiFi / MQTT -----------
 WIFI_SSID = ''
-WIFI_PASS = ''      
-BROKER_IP = ''      # <-- IP 
+WIFI_PASS = ''   
+BROKER_IP = ''  # <-- IP4 de PC
 BROKER_PORT = 1883
 
 TOPIC_ESTADO   = b'picow/fingers'   # Pico -> Web (telemetría booleana por dedo)
@@ -189,4 +189,3 @@ while True:
         t_pub = time.ticks_ms()
 
     time.sleep(LOOP_DT)
-

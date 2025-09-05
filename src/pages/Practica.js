@@ -57,7 +57,7 @@ function Practica() {
           className={`opcion ${selectedLevel === 'practica' ? 'seleccionado' : ''}`}
           onClick={() => { setSelectedLevel('practica'); setShowError(false); }}
         >
-          🐣 Práctica
+          🔥 Práctica
         </button>
         <button
           className={`opcion ${selectedLevel === 'facil' ? 'seleccionado' : ''}`}
