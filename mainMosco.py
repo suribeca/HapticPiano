@@ -1,4 +1,4 @@
-# ===== Pico W + Mosquitto (LAN) =====
+# ===== Pico W + Mosquitto (Access Point Mode) =====
 # - Local-first: sensores controlan LED (VERDE) y motor sin latencia.
 # - Publica cambios de estado a 'picow/fingers' (Pico -> Web).
 # - Suscribe 'web/pressed' pero IGNORA color/freq por ahora (puente listo).
@@ -9,10 +9,11 @@ import time, ujson, network
 from machine import ADC, Pin, PWM
 from umqtt.simple import MQTTClient
 
-# ----------- WiFi / MQTT -----------
-WIFI_SSID = ''
-WIFI_PASS = ''   
-BROKER_IP = ''  # <-- IP4 de PC
+# ----------- WiFi Access Point / MQTT -----------
+AP_SSID = "HapticGlove"
+AP_PASSWORD = "12345678"
+AP_IP = "192.168.4.1"
+BROKER_IP = '192.168.4.17'  # IP de tu PC cuando se conecte al AP
 BROKER_PORT = 1883
 
 TOPIC_ESTADO   = b'picow/fingers'   # Pico -> Web (telemetría booleana por dedo)
@@ -52,8 +53,6 @@ motors = [
 motor_mapping = [3, 4, 1, 0, 2]
 
 # ----------- Utilidades LED -----------
-GREEN = (0, 65535, 0)  # siempre verde
-
 def set_led_green(led):
     led[0].duty_u16(0)       # R off
     led[1].duty_u16(65535)   # G on
@@ -103,77 +102,202 @@ def read_pressed_list():
     return pressed
 
 # ----------- MQTT (suscripción opcional) -----------
-# Dejamos el callback listo, pero no alteramos LED/motores para mantener baja latencia.
 def on_mqtt_message(topic, msg):
     # Estructura esperada (si algún día quieres reactivar):
     # {"thumb":{"pressed":true,"color":"#00ff00","freq":50000}, ...}
     # Por ahora, lo ignoramos a propósito para que nada meta latencia.
-    pass
+    try:
+        print("MQTT recibido:", topic.decode(), msg.decode())
+    except:
+        pass
 
-def wifi_connect():
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    if not wlan.isconnected():
-        print("Conectando WiFi...")
-        wlan.connect(WIFI_SSID, WIFI_PASS)
-        while not wlan.isconnected():
-            time.sleep(0.1)
-    print("WiFi:", wlan.ifconfig())
+def wifi_ap_mode():
+    """Configura el Pico W como Access Point"""
+    print("Configurando Access Point...")
+    
+    # Desactivar modo cliente
+    wlan_sta = network.WLAN(network.STA_IF)
+    wlan_sta.active(False)
+    time.sleep(1)
+    
+    # Configurar Access Point
+    ap = network.WLAN(network.AP_IF)
+    ap.active(False)
+    time.sleep(1)
+    
+    ap.active(True)
+    time.sleep(2)
+    
+    # Configuración del AP (modo compatible)
+    try:
+        # Intentar con diferentes modos de autenticación disponibles
+        if hasattr(network, 'AUTH_WPA_WPA2_PSK'):
+            authmode = network.AUTH_WPA_WPA2_PSK
+        elif hasattr(network, 'AUTH_WPA2_PSK'):
+            authmode = network.AUTH_WPA2_PSK
+        elif hasattr(network, 'AUTH_WPA_PSK'):
+            authmode = network.AUTH_WPA_PSK
+        else:
+            authmode = 3  # Valor típico para WPA2-PSK
+        
+        ap.config(
+            essid=AP_SSID,
+            password=AP_PASSWORD,
+            authmode=authmode,
+            channel=6
+        )
+        print(f"AP configurado con authmode: {authmode}")
+        
+    except Exception as e:
+        print(f"Error en configuración avanzada: {e}")
+        # Configuración básica como fallback
+        ap.config(essid=AP_SSID, password=AP_PASSWORD)
+        print("Usando configuración básica")
+    
+    # Configurar IP
+    ap.ifconfig((AP_IP, '255.255.255.0', AP_IP, '8.8.8.8'))
+    
+    # Verificar que esté activo
+    timeout = 10
+    start_time = time.time()
+    while not ap.active():
+        if time.time() - start_time > timeout:
+            raise Exception("No se pudo activar Access Point")
+        time.sleep(0.5)
+    
+    config = ap.ifconfig()
+    print("=== ACCESS POINT ACTIVO ===")
+    print(f"SSID: '{AP_SSID}'")
+    print(f"Password: '{AP_PASSWORD}'")
+    print(f"IP del Pico: {config[0]}")
+    print(f"Rango DHCP: 192.168.4.2-192.168.4.10")
+    print("¡Conecta tu PC a esta red WiFi!")
+    print("===============================")
+    
+    return ap
 
 def mqtt_connect():
-    c = MQTTClient(client_id=b'PicoClient',
-                   server=BROKER_IP, port=BROKER_PORT,
-                   user=None, password=None,
-                   keepalive=30, ssl=False)
-    c.set_callback(on_mqtt_message)
-    c.connect()
-    c.subscribe(TOPIC_FEEDBACK)
-    print("MQTT conectado:", BROKER_IP)
-    return c
+    """Conecta al broker MQTT con reintentos"""
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        try:
+            print(f"Conectando MQTT a {BROKER_IP} (intento {attempt + 1}/{max_attempts})...")
+            c = MQTTClient(client_id=b'PicoClient',
+                           server=BROKER_IP, port=BROKER_PORT,
+                           user=None, password=None,
+                           keepalive=60, ssl=False)
+            c.set_callback(on_mqtt_message)
+            c.connect()
+            c.subscribe(TOPIC_FEEDBACK)
+            print(f"MQTT conectado exitosamente!")
+            return c
+        except Exception as e:
+            print(f"Error MQTT: {e}")
+            if attempt < max_attempts - 1:
+                print("Esperando 3 segundos antes de reintentar...")
+                time.sleep(3)
+    
+    print("⚠ MQTT no disponible, funcionando solo en modo local")
+    return None
 
 # Publicar sólo si cambió el estado (menos tráfico)
 last_pressed = [False]*5
 def publish_states_if_changed(client, pressed):
     global last_pressed
+    if not client:  # Si no hay conexión MQTT, no publicar
+        return
+        
     if pressed != last_pressed:
         payload = {
-            # mismo mapeo “LED1..LED5 ↔ pinky, ring, middle, index, thumb”
+            # mismo mapeo "LED1..LED5 ↔ pinky, ring, middle, index, thumb"
             "pinky":  bool(pressed[0]),
             "ring":   bool(pressed[1]),
             "middle": bool(pressed[2]),
             "index":  bool(pressed[3]),
             "thumb":  bool(pressed[4]),
+            "timestamp": time.ticks_ms()
         }
         try:
             client.publish(TOPIC_ESTADO, ujson.dumps(payload))
+            print("Estado:", [i for i, p in enumerate(pressed) if p])  # Solo mostrar dedos presionados
         except Exception as e:
-            # Si falla la publi, seguimos con lazo local (no afectamos hápticos)
+            # Si falla la publicación, seguimos con lazo local
             print("MQTT publish error:", e)
         last_pressed = pressed[:]
 
+def startup_pattern():
+    """Patrón de inicio - confirma que el hardware funciona"""
+    print("Iniciando patrón de LEDs...")
+    for cycle in range(3):
+        # Encender todos los LEDs en verde
+        for led in leds:
+            set_led_green(led)
+        # Activar todos los motores brevemente
+        for motor in motors:
+            motor.value(1)
+        time.sleep(0.3)
+        
+        # Apagar todo
+        for led in leds:
+            turn_off_led(led)
+        for motor in motors:
+            motor.value(0)
+        time.sleep(0.3)
+    print("Patrón completado - Hardware OK")
+
 # ----------- Main -----------
-wifi_connect()
+print("=== INICIANDO HAPTIC GLOVE ===")
+
+# Patrón de inicio para verificar hardware
+startup_pattern()
+
+# Configurar Access Point
+try:
+    ap = wifi_ap_mode()
+except Exception as e:
+    print(f"ERROR configurando AP: {e}")
+    print("Revisa el hardware del Pico W")
+    raise
+
+# Esperar a que el usuario conecte su PC
+print("\nEsperando conexión de PC...")
+print("1. Conecta tu PC a la red 'HapticGlove'")
+print("2. Inicia Mosquitto en tu PC")
+print("3. El Pico intentará conectarse al broker MQTT")
+
+# Dar tiempo para la conexión
+for i in range(10, 0, -1):
+    print(f"Iniciando en {i}s...")
+    time.sleep(1)
+
+# Intentar conectar MQTT (opcional)
 client = mqtt_connect()
 
+# Variables del loop principal
 LOOP_DT = 0.02  # 20 ms: respuesta rápida pero estable
-PUB_MS  = 80    # publicar máx ~12.5 Hz
+PUB_MS  = 100   # publicar máx 10 Hz
 t_pub   = time.ticks_ms()
+
+print("\n=== SISTEMA ACTIVO ===")
+print("Sensores → LEDs verdes + Motores")
+if client:
+    print("MQTT → Publicando a 'picow/fingers'")
+print("========================")
 
 while True:
     # Procesa tráfico MQTT entrante sin bloquear
-    try:
-        client.check_msg()
-    except Exception as e:
-        # Intento simple de reconexión si algo pasa
-        print("MQTT check_msg error:", e)
+    if client:
         try:
+            client.check_msg()
+        except Exception as e:
+            print("MQTT check_msg error:", e)
+            # Intento de reconexión
             client = mqtt_connect()
-        except Exception as e2:
-            print("MQTT reconnection failed:", e2)
 
-    # Lectura de sensores (con filtros) y accionamiento local inmediato
+    # Lectura de sensores (con filtros) y aping 192.168.4.1ccionamiento local inmediato
     pressed = read_pressed_list()
 
+    # Control local inmediato (sin latencia)
     for i in range(5):
         motor_idx = motor_mapping[i]
         if pressed[i]:
@@ -183,7 +307,7 @@ while True:
             turn_off_led(leds[i])
             motors[motor_idx].value(0)
 
-    # Telemetría si cambió algo (sin bloquear lazo)
+    # Telemetría periódica si cambió algo
     if time.ticks_diff(time.ticks_ms(), t_pub) >= PUB_MS:
         publish_states_if_changed(client, pressed)
         t_pub = time.ticks_ms()
