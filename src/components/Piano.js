@@ -64,9 +64,9 @@ function Piano() {
     // Centrar en DO4 tras montar
     setTimeout(() => {
       const container = pianoContainerRef.current;
-      const do4Key = document.getElementById('do4');
-      if (container && do4Key) {
-        const offset = do4Key.offsetLeft + (do4Key.offsetWidth / 2);
+      const do4 = document.getElementById('do4');
+      if (container && do4) {
+        const offset = do4.offsetLeft + (do4.offsetWidth / 2);
         container.scrollLeft = offset - container.offsetWidth / 2;
       }
     }, 300);

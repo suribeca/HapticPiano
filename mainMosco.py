@@ -31,24 +31,22 @@ sensors = [
 
 # ----------- LEDs RGB (PWM) -----------
 leds = [
-    [PWM(Pin(1)),  PWM(Pin(2)),  PWM(Pin(3))],     # LED 1  (R,G,B)
-    [PWM(Pin(4)),  PWM(Pin(5)),  PWM(Pin(6))],     # LED 2
-    [PWM(Pin(7)),  PWM(Pin(8)),  PWM(Pin(9))],     # LED 3
-    [PWM(Pin(10)), PWM(Pin(11)), PWM(Pin(12))],    # LED 4
-    [PWM(Pin(13)), PWM(Pin(14)), PWM(Pin(15))]     # LED 5
+    [Pin(1, Pin.OUT), Pin(2, Pin.OUT), Pin(3, Pin.OUT)],      # LED 1: Pinky
+    [Pin(4, Pin.OUT), Pin(5, Pin.OUT), Pin(6, Pin.OUT)],      # LED 2: Ring
+    [Pin(7, Pin.OUT), Pin(8, Pin.OUT), Pin(9, Pin.OUT)],      # LED 3: Middle
+    [Pin(10, Pin.OUT), Pin(11, Pin.OUT), Pin(12, Pin.OUT)],   # LED 4: Index
+    [Pin(13, Pin.OUT), Pin(14, Pin.OUT), Pin(15, Pin.OUT)]    # LED 5: Thumb
 ]
 
 # ----------- Motores (salida digital) -----------
+
 motors = [
-    Pin(16, Pin.OUT),  # Motor 1: Index
-    Pin(17, Pin.OUT),  # Motor 2: Middle
-    Pin(18, Pin.OUT),  # Motor 3: Thumb
-    Pin(19, Pin.OUT),  # Motor 4: Pinky
-    Pin(20, Pin.OUT)   # Motor 5: Ring
+    PWM(Pin(19)),  # Motor 4: Pinky
+    PWM(Pin(20)),   # Motor 5: Ring
+    PWM(Pin(17)),  # Motor 2: Middle
+    PWM(Pin(16)),  # Motor 1: Index
+    PWM(Pin(18))  # Motor 3: Thumb
 ]
-
-motor_mapping = [3, 4, 1, 0, 2] # Sensor -> Motor
-
 
 # ----------- Filtros de entrada -----------
 # Histeresis y Debounce
@@ -63,22 +61,48 @@ DEBOUNCE_MS = 20
 # Utilidades de lectura de sensores
 #===============================
 
-def init_leds():
-    """Configura frecuencia PWM para todos los LEDs."""
-    for led in leds:
-        for ch in led:
-            ch.freq(1000)
+            
+def init_motors():
+    """Configura frecuencia PWM para todos los motores."""
+    for motor in motors:
+            motor.freq(1000)
 
-def set_led_green(led):
-    """Enciende un LED en color verde."""
-    led[0].duty_u16(0)
-    led[1].duty_u16(65535)
-    led[2].duty_u16(0)
+def set_led_color(led, r, g, b):
+    """Enciende un LED en el color indicado."""
+    led[0].value(r)
+    led[1].value(g)
+    led[2].value(b)
 
 def turn_off_led(led):
-    """Apaga un LED RGB."""
-    for ch in led:
-        ch.duty_u16(0)
+    """Apaga LED"""
+    set_led_color(led, 0, 0, 0)
+
+#Código de legado
+def hex_to_rgb565(hex_color): 
+    """Convierte un color hexadecimal #RRGGBB a tupla (r,g,b) en rango 0-65535."""
+    hex_color = hex_color.lstrip('#')
+    r = int(hex_color[0:2], 16) * 257
+    g = int(hex_color[2:4], 16) * 257
+    b = int(hex_color[4:6], 16) * 257
+    return (r, g, b)
+
+def hex_to_bin_rgb(hex_color):
+    """Convierte un color hexadecimal #RRGGBB a tupla binaria (r,g,b) 0/1"""
+    hex_color = hex_color.lstrip('#')
+    r = 1 if int(hex_color[0:2], 16) > 127 else 0
+    g = 1 if int(hex_color[2:4], 16) > 127 else 0
+    b = 1 if int(hex_color[4:6], 16) > 127 else 0
+    return (r, g, b)
+
+def finger_to_led_index(finger):
+    """Mapea nombre de dedo a índice de LED/motor."""
+    return {
+        "pinky":  0,  # LED1
+        "ring":   1,  # LED2
+        "middle": 2,  # LED3
+        "index":  3,  # LED4
+        "thumb":  4   # LED5
+    }.get(finger, None)
 
 
 # =============================
@@ -116,12 +140,27 @@ def read_sensors():
 
 def on_mqtt_message(topic, msg):
     """Callback para mensajes entrantes."""
-    # Estructura esperada (si algún día quieres reactivar):
-    # {"thumb":{"pressed":true,"color":"#00ff00","freq":50000}, ...}
     try:
-        print(f"[MQTT] Mensaje recibido en {topic}:{msg}")
-    except:
-        pass
+        data = ujson.loads(msg)
+        for finger, info in data.items():
+            pressed = info.get("pressed", False)
+            color = info.get("color", "#000000")
+            freq = info.get("freq", 0)
+            led_index = finger_to_led_index(finger)
+            r,g,b = hex_to_bin_rgb(color)
+
+            if not isinstance(freq,int):
+                freq = 0
+
+            if led_index is not None and 0 <= led_index < len(leds):
+                if pressed:
+                    set_led_color(leds[led_index], r,g,b)
+                    motors[led_index].duty_u16(freq)
+                else:
+                    turn_off_led(leds[led_index])
+                    motors[led_index].duty_u16(0)
+    except Exception as e:
+        print("Error en on_mqtt_message:", e)
 
 def mqtt_connect():
     """Conecta al broker MQTT con reintentos"""
@@ -214,31 +253,34 @@ def wifi_ap_mode():
 # ================================================================
 
 def startup_pattern():
-    """Patrón de inicio - confirma que el hardware funciona"""
-    print("Iniciando patrón de LEDs...")
-    for cycle in range(3):
-        # Encender todos los LEDs en verde
-        for led in leds:
-            set_led_green(led)
-        # Activar todos los motores brevemente
-        for motor in motors:
-            motor.value(1)
+    """Patrón de inicio - testea LEDs y motores secuencialmente y en grupo"""
+    print("Iniciando patrón de LEDs y motores...")
+    for i, led in enumerate(leds):
+        time.sleep(1.0)
+        # Rojo, verde, azul secuencial
+        set_led_color(led, 1,0,0); motors[i].duty_u16(10000); time.sleep(0.2)
+        set_led_color(led, 0,1,0); motors[i].duty_u16(20000); time.sleep(0.2)
+        set_led_color(led, 0,0,1); motors[i].duty_u16(30000); time.sleep(0.2)
+        turn_off_led(led); motors[i].duty_u16(0); time.sleep(0.2)
+    # Todos juntos
+    for _ in range(3):
+        for led in leds: set_led_color(led,1,1,1)
+        for motor in motors: motor.duty_u16(40000)
         time.sleep(0.3)
-        
-        # Apagar todo
-        for led in leds:
-            turn_off_led(led)
-        for motor in motors:
-            motor.value(0)
+        for led in leds: turn_off_led(led)
+        for motor in motors: motor.duty_u16(0)
         time.sleep(0.3)
-    print("Patrón completado - Hardware OK")
+    print("Patrón completado")
+
 
 # ================================
 # MAIN
 # ================================
 def main():
+
+   # --- Inicialización --- 
     print("=== INICIANDO HAPTIC GLOVE ===")
-    init_leds()
+    init_motors()
     startup_pattern()
 
     wifi_ap_mode()
@@ -248,28 +290,28 @@ def main():
     LOOP_DT, PUB_MS = 0.02, 100
     t_pub = time.ticks_ms()
 
+    if client:
+        client.set_callback(on_mqtt_message)
+
     print("[MAIN] Sistema en ejecución.")
+
+    # --- Bucle principal ---
     while True:
-        # Leer sensores
+        
         pressed = read_sensors()
-
-        # Control inmediato
-        for i in range(5):
-            motor_idx = motor_mapping[i]
-            if pressed[i]:
-                set_led_green(leds[i])
-                motors[motor_idx].value(1)
-            else:
-                turn_off_led(leds[i])
-                motors[motor_idx].value(0)
-
-        # Publicar cambios
         if time.ticks_diff(time.ticks_ms(), t_pub) >= PUB_MS:
             last_pressed = publish_states_if_changed(client, pressed, last_pressed)
             t_pub = time.ticks_ms()
 
-        time.sleep(LOOP_DT)
+   
+        if client:
+            try:
+                client.check_msg()
+            except Exception as e:
+                print("[MQTT] check_msg error:", e)
+                client = mqtt_connect()  # reintento si falla
 
+        time.sleep(LOOP_DT)
 # ================================================================
 # ENTRY POINT
 # ================================================================
