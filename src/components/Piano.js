@@ -15,8 +15,11 @@ function Piano() {
   const location = useLocation();
   const navigate = useNavigate();
   const { mode = 'cancion', song = 'ode', difficulty = 'practica' } = location.state || {};
+  const practiceMode = difficulty;
 
-  // ------------------ Estado UI ------------------
+  // ==============================================================
+  // Use States
+  // ==============================================================
   const [pressedNotes, setPressedNotes] = useState([]);
   const [fingerColors] = useState({
     thumb: "#cccccc", index: "#cccccc", middle: "#cccccc", ring: "#cccccc", pinky: "#cccccc"
@@ -35,15 +38,18 @@ function Piano() {
   // Modal: visible al cargar. Se cierra sólo cuando la persona pulsa “Entendido”
   const [showInstructions, setShowInstructions] = useState(true);
 
-  // ------------------ Refs ------------------
-  const practiceMode = difficulty;
+  // ==============================================================
+  // Use Refs
+  // ==============================================================
   const prevFingerStatus = useRef({});
   const lastPublishedState = useRef({});
   const pianoContainerRef = useRef(null);
   const audioRefs = useRef({});
   const incrementScore = (total) => setScore(prev => prev + total);
 
-  // ------------------ Mount: MIDI, MQTT, Canción, Scroll inicial ------------------
+  // ==============================================================
+  // Setup inicial
+  // ==============================================================
   useEffect(() => {
     if (!song || !difficulty) {
       navigate('/practica');
@@ -82,7 +88,9 @@ function Piano() {
       .catch(err => console.error('Error al cargar notas JSON:', err));
   }, []); // eslint-disable-line
 
-  // ------------------ MIDI ------------------
+  // ==============================================================
+  // Funciones MIDI 
+  // ==============================================================
   const onMIDISuccess = useCallback((midiAccess) => {
     for (let input of midiAccess.inputs.values()) {
       input.onmidimessage = handleMIDIMessage;
@@ -93,16 +101,20 @@ function Piano() {
     console.error("No se pudo acceder a dispositivos MIDI.");
   };
 
-  // Nota MIDI -> frecuencia/intensidad háptica (map simple grave→fuerte, agudo→suave)
+  
+  // ==============================================================
+  // Funciones auxiliares de audio
+  // ==============================================================
+
+  // Convierte nota a frecuencia de vibración para los motores
   const noteToFreq = (noteName) => {
     const index = NOTES.indexOf(noteName);
     if (index === -1) return 0;
     const ratio = index / NOTES.length;
-    // 20000..65500 (lineal). Si prefieres desactivar variación, fija un valor (p.ej. 45000)
     return Math.round(65500 - (ratio * (65500 - 20000)));
   };
 
-  // Reproducir audio HTML precargado
+  // Reproducir audio HTML precargado de las notas
   const playNote = (note) => {
     const match = note.match(/^(la|zla|si)(\d)$/);
     let correctedNote = note;
@@ -116,6 +128,10 @@ function Piano() {
       audio.play().catch(() => {});
     }
   };
+
+  // ==============================================================
+  // Funciones de manejo y envío de estado de dedos
+  // ==============================================================
 
   // Publica a MQTT el estado actual de dedos tras cada NoteOn/NoteOff
   const publishImmediateFeedback = (noteName) => {
@@ -153,7 +169,11 @@ function Piano() {
     }
   };
 
-  // ------------------ Countdown ------------------
+
+
+  // ==============================================================
+  // Funciones de cuenta regresiva y render
+  // ==============================================================
   const startCountdown = () => {
     setShowCountdown(true);
     setCountdown(3);
@@ -177,6 +197,9 @@ function Piano() {
 
   const containerHeight = 350;
 
+  // ==============================================================
+  // Render principal CSS
+  // ==============================================================
   return (
     <div style={{ backgroundColor: '#2b2d31', minHeight: '100vh' }}>
       {/* Top bar con puntaje */}

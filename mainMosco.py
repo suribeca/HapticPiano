@@ -219,13 +219,12 @@ def wifi_ap_mode():
     
     # Configurar Access Point
     ap = network.WLAN(network.AP_IF)
-    ap.active(True)
-    time.sleep(1)
-
     ap.config(
         essid=AP_SSID,
         password=AP_PASSWORD)
     ap.ifconfig((AP_IP, "255.255.255.0", AP_IP, "8.8.8.8"))
+    ap.active(True)
+    time.sleep(1)
     
     print(f"[WIFI] AP '{AP_SSID}' activo en {ap.ifconfig()[0]}")
 
