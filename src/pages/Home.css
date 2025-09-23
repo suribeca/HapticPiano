@@ -1,87 +1,121 @@
-.home {
+/* src/components/Home.css */
+
+.home-container {
   width: 100%;
-  background-color: #1f1f22;
-  color: white;
-  font-family: 'Segoe UI', sans-serif;
-  overflow-x: hidden;
+  background-color: #121212;
+  color: #f5f5f5;
+  font-family: Arial, sans-serif;
 }
 
-/* Secciones scrolleables */
-.section {
-  position: relative;
-  min-height: 100vh; /* ocupa toda la pantalla */
+/* ----------- Intro ----------- */
+.intro-section {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  text-align: center;
+  justify-content: space-between;
+  padding: 4rem 8%;
+  flex-wrap: wrap;
 }
 
-.content {
-  max-width: 800px;
-  z-index: 2; /* por encima de imágenes de fondo */
+.intro-text {
+  flex: 1;
+  max-width: 500px;
 }
 
-.title {
-  font-size: 3rem;
-  font-weight: bold;
-  color: #19a7ff;
-  margin-bottom: 1.5rem;
+.intro-title {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: #ffffff;
 }
 
-.subtitle {
-  font-size: 1.3rem;
-  color: #cccccc;
-  line-height: 1.6;
+.intro-subtitle {
+  font-size: 1.2rem;
+  margin-bottom: 2rem;
+  color: #bbbbbb;
 }
 
-/* HERO con imagen de fondo */
-.hero {
-  position: relative;
-  color: white;
-}
-.background-image {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  filter: brightness(0.4);
-  z-index: 1;
-}
-
-/* Misión */
-.mission {
-  background: linear-gradient(135deg, #1f1f22 0%, #2a2d33 100%);
-}
-
-/* Opciones */
-.options {
-  background-color: #1f1f22;
-}
-.buttons {
+.intro-buttons {
   display: flex;
   gap: 1rem;
-  justify-content: center;
-  margin-top: 2rem;
 }
-.buttons button {
-  font-size: 1rem;
-  padding: 0.8rem 2rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-.buttons button:first-child {
-  background-color: #19a7ff;
-  color: white;
-  font-weight: bold;
+
+.btn-primary,
+.btn-secondary {
+  padding: 12px 20px;
+  border-radius: 10px;
   border: none;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
 }
-.buttons .outline {
-  background-color: transparent;
-  border: 2px solid #19a7ff;
-  color: #19a7ff;
+
+.btn-primary {
+  background-color: #00bfff;
+  color: white;
 }
-.buttons .outline:hover {
-  background-color: #19a7ff10;
+
+.btn-primary:hover {
+  background-color: #0099cc;
+}
+
+.btn-secondary {
+  background-color: #2b2f36;
+  color: #f5f5f5;
+}
+
+.btn-secondary:hover {
+  background-color: #3a3f47;
+}
+
+.intro-image {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  max-width: 400px;
+}
+
+.intro-image img {
+  width: 250%;
+  max-width: 600px;
+  border-radius: 12px;
+}
+
+/* ----------- Misión ----------- */
+.mission-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 4rem 8%;
+  flex-wrap: wrap;
+  background-color: #1a1a1a;
+}
+
+.mission-image {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  max-width: 400px;
+}
+
+.mission-image img {
+  width: 100%;
+  max-width: 350px;
+  border-radius: 12px;
+}
+
+.mission-text {
+  flex: 1;
+  max-width: 500px;
+  padding: 1rem 2rem;
+}
+
+.mission-text h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: #ffffff;
+}
+
+.mission-text p {
+  font-size: 1.1rem;
+  color: #dddddd;
 }

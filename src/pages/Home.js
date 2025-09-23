@@ -1,70 +1,59 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import './Home.css';
+// src/components/Home.js
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import "./Home.css";
 
 function Home() {
   const navigate = useNavigate();
 
   return (
-    <div className="home">
-
-      {/* HERO SECTION */}
-      <section className="section hero">
-        <div className="content">
-          <h1 className="title">Piano Háptico</h1>
-          <p className="subtitle">
-            Cualquiera puede practicar a su ritmo, a su estilo 🎧
+    <div className="home-container">
+      {/* ----------- Sección Intro ----------- */}
+      <section className="intro-section">
+        <div className="intro-text">
+          <h1 className="intro-title">
+            Piano Háptico
+          </h1>
+          <p className="intro-subtitle">
+            Cualquiera puede practicar a su ritmo, a su estilo
           </p>
-        </div>
-        <img
-          src="/img/pianoplayer1.jpg"
-          alt="Joven tocando piano"
-          className="background-image"
-        />
-      </section>
-
-      {/* MISIÓN */}
-      <section className="section mission">
-        <div className="content">
-          <h1 className= "title">Nuestra misión</h1>
-          <p className="subtitle">
-            Este proyecto busca acercar la música a personas con discapacidad auditiva,
-            brindándoles una forma innovadora de sentir y practicar el piano a través
-            de retroalimentación háptica.
-          </p>
-
-          <p className="subtitle">
-            Este sistema está diseñado para mejorar la experiencia educativa, 
-            haciéndola más accesible y efectiva para personas con discapacidad auditiva, 
-            permitiéndoles interpretar y comprender la música a través de estímulos táctiles 
-            y visuales que complementen la percepción auditiva ausente.
-          </p>
-        </div>
-      </section>
-
-      {/* OPCIONES */}
-      <section className="section options">
-        <div className="content">
-          <h2 className="title">Elige cómo quieres comenzar</h2>
-          <div className="buttons">
-            <button onClick={() => navigate('/practica')}>Comenzar práctica</button>
+          <div className="intro-buttons">
             <button
-              onClick={() =>
-                navigate('/piano', { state: { mode: 'libre' } })
-              }
-              className="outline"
+              className="btn-primary"
+              onClick={() => navigate("/practica")}
             >
-              Explorar demo
+              🎶 Comenzar práctica
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => navigate("/piano")}
+            >
+              👋 Explorar demo
             </button>
           </div>
         </div>
-        <img
-          src="/img/girlPiano.png"
-          alt="Niña usando sistema"
-          className="background-image"
-        />
+        <div className="intro-image">
+          {/* Imagen desde public/img */}
+          <img src="/img/girlPiano.png" alt="Niña tocando piano" />
+        </div>
       </section>
-      
+
+      {/* ----------- Sección Misión ----------- */}
+      <section className="mission-section">
+        <div className="mission-image">
+          <img src="/img/pianoplayer1.jpg" alt="Chico tocando piano" />
+        </div>
+        <div className="mission-text">
+          <h2>Nuestra misión</h2>
+          <p>
+            Este proyecto busca hacer la música accesible para todas las
+            personas, combinando tecnología, retroalimentación háptica y
+            aprendizaje interactivo. Queremos que cada usuario, sin importar su
+            experiencia, pueda disfrutar de tocar el piano de manera única y
+            personalizada.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
