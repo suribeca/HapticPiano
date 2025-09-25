@@ -9,7 +9,7 @@ from umqtt.simple import MQTTClient
 # ================================
 
 # ----------- WiFi Access Point -----------
-AP_SSID = "PICO2C7F" #Nombre por defecto
+AP_SSID = "HapticGlove" #Nombre por defecto
 AP_PASSWORD = "12345678"
 AP_IP = "192.168.4.1"
 

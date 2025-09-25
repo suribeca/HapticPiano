@@ -45,6 +45,8 @@ function Piano() {
   const lastPublishedState = useRef({});
   const pianoContainerRef = useRef(null);
   const audioRefs = useRef({});
+  const lastNoteRef = useRef(null);
+  const pressedNotesRef = useRef([]);
   const incrementScore = (total) => setScore(prev => prev + total);
 
   // ==============================================================
@@ -86,7 +88,7 @@ function Piano() {
         setFallingNotes(withIds);
       })
       .catch(err => console.error('Error al cargar notas JSON:', err));
-  }, []); // eslint-disable-line
+  }, []);
 
   // ==============================================================
   // Funciones MIDI 
@@ -101,7 +103,7 @@ function Piano() {
     console.error("No se pudo acceder a dispositivos MIDI.");
   };
 
-  
+
   // ==============================================================
   // Funciones auxiliares de audio
   // ==============================================================
@@ -125,7 +127,7 @@ function Piano() {
     const audio = audioRefs.current[correctedNote];
     if (audio && audio instanceof HTMLAudioElement) {
       audio.currentTime = 0;
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
     }
   };
 
@@ -133,6 +135,7 @@ function Piano() {
   // Funciones de manejo y envío de estado de dedos
   // ==============================================================
 
+  /*
   // Publica a MQTT el estado actual de dedos tras cada NoteOn/NoteOff
   const publishImmediateFeedback = (noteName) => {
     const feedback = {};
@@ -149,6 +152,34 @@ function Piano() {
       lastPublishedState.current = feedback;
     }
   };
+  */
+
+  // Mantiene actualizado el ref de notas presionadas
+  useEffect(() => {
+  pressedNotesRef.current = pressedNotes;
+}, [pressedNotes]);
+
+
+  // Publicación continua del estado de dedos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const feedback = {};
+      for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
+        const pressed = prevFingerStatus.current[finger] || false;
+        feedback[finger] = {
+          pressed,
+          color: pressed ? "#00ff00" : "#cccccc",
+          freq: pressed ? noteToFreq(lastNoteRef.current) : 0
+        };
+      }
+
+      publishFeedback(feedback);
+
+    }, 75); // cada 50ms (~20Hz)
+
+    return () => clearInterval(interval);
+  }, []);
+
 
   // MIDI handler
   const handleMIDIMessage = ({ data }) => {
@@ -161,11 +192,13 @@ function Piano() {
     if (isNoteOn) {
       setPressedNotes(prev => [...prev, noteName]);
       playNote(noteName);
-      publishImmediateFeedback(noteName);
+      lastNoteRef.current = noteName;
+      //publishImmediateFeedback(noteName);
     }
     if (isNoteOff) {
       setPressedNotes(prev => prev.filter(n => n !== noteName));
-      publishImmediateFeedback(noteName);
+      lastNoteRef.current = null;
+      //publishImmediateFeedback(noteName);
     }
   };
 
