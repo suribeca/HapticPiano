@@ -156,8 +156,8 @@ function Piano() {
 
   // Mantiene actualizado el ref de notas presionadas
   useEffect(() => {
-  pressedNotesRef.current = pressedNotes;
-}, [pressedNotes]);
+    pressedNotesRef.current = pressedNotes;
+  }, [pressedNotes]);
 
 
   // Publicación continua del estado de dedos
@@ -168,7 +168,7 @@ function Piano() {
         const pressed = prevFingerStatus.current[finger] || false;
         feedback[finger] = {
           pressed,
-          color: pressed ? "#00ff00" : "#cccccc",
+          color: pressed ? "#00ffff" : "#cccccc",
           freq: pressed ? noteToFreq(lastNoteRef.current) : 0
         };
       }
@@ -239,7 +239,7 @@ function Piano() {
       <div className="topContainer">
         <div className="volver-wrapper">
           <button className="volver-btn" onClick={() => navigate('/')}>
-            ⬅ Volver al menú
+            Volver al menú 
           </button>
         </div>
         <div className="score-wrapper">

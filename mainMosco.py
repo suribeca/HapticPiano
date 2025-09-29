@@ -9,7 +9,7 @@ from umqtt.simple import MQTTClient
 # ================================
 
 # ----------- WiFi Access Point -----------
-AP_SSID = "HapticGlove" #Nombre por defecto
+AP_SSID = "HapticGlove"
 AP_PASSWORD = "12345678"
 AP_IP = "192.168.4.1"
 
@@ -17,8 +17,8 @@ AP_IP = "192.168.4.1"
 BROKER_IP = '192.168.4.16'  # IP de tu PC cuando se conecte al AP
 BROKER_PORT = 1883
 
-TOPIC_ESTADO   = b'picow/fingers'   # Pico -> Web (telemetría booleana por dedo)
-TOPIC_FEEDBACK = b'web/pressed'     # Web  -> Pico (IGNORADO por ahora)
+TOPIC_ESTADO   = b'picow/fingers'   # Pico -> Web 
+TOPIC_FEEDBACK = b'web/pressed'     # Web  -> Pico 
 
 # ----------- Sensores -----------
 sensors = [
@@ -49,8 +49,9 @@ motors = [
 ]
 
 # ----------- Filtros de entrada -----------
-# Histeresis y Debounce
-THRESH_ON, THRESH_OFF  = 30000, 26000
+# Histeresis y Debounce: Control de sensibilidad
+
+THRESH_ON, THRESH_OFF  = 12000, 8000
 analog_state = [False]*3  # estado latched por canal analógico
 digital_state = [False]*2  # estado estable de digitales
 last_change_ms = [0]*2  # para los 2 digitales (índices 3 y 4)
@@ -255,16 +256,16 @@ def startup_pattern():
     """Patrón de inicio - testea LEDs y motores secuencialmente y en grupo"""
     print("Iniciando patrón de LEDs y motores...")
     for i, led in enumerate(leds):
-        time.sleep(1.0)
+        time.sleep(0.5)
         # Rojo, verde, azul secuencial
         set_led_color(led, 1,0,0); motors[i].duty_u16(10000); time.sleep(0.2)
         set_led_color(led, 0,1,0); motors[i].duty_u16(20000); time.sleep(0.2)
         set_led_color(led, 0,0,1); motors[i].duty_u16(30000); time.sleep(0.2)
         turn_off_led(led); motors[i].duty_u16(0); time.sleep(0.2)
     # Todos juntos
-    for _ in range(3):
+    for i in range(3):
         for led in leds: set_led_color(led,1,1,1)
-        for motor in motors: motor.duty_u16(40000)
+        for motor in motors: motor.duty_u16(i*10000)
         time.sleep(0.3)
         for led in leds: turn_off_led(led)
         for motor in motors: motor.duty_u16(0)
