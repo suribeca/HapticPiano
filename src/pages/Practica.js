@@ -33,19 +33,19 @@ function Practica() {
           className={`opcion ${selectedSong === 'twinkle' ? 'seleccionado' : ''}`}
           onClick={() => { setSelectedSong('twinkle'); setShowError(false); }}
         >
-          🎵 Twinkle Twinkle
+          ¿Estrellita Dónde Estás?
         </button>
         <button
           className={`opcion ${selectedSong === 'ode' ? 'seleccionado' : ''}`}
           onClick={() => { setSelectedSong('ode'); setShowError(false); }}
         >
-          🎶 Ode to Joy
+          Himno a la Alegría
         </button>
         <button
           className={`opcion ${selectedSong === 'lamb' ? 'seleccionado' : ''}`}
           onClick={() => { setSelectedSong('lamb'); setShowError(false); }}
         >
-          🎶 Mary Had a Little Lamb
+          Mary tenía un Corderito
         </button>
       </div>
 
@@ -54,22 +54,22 @@ function Practica() {
       {/* Dificultades */}
       <div className="opciones-grid">
         <button
-          className={`opcion ${selectedLevel === 'practica' ? 'seleccionado' : ''}`}
-          onClick={() => { setSelectedLevel('practica'); setShowError(false); }}
-        >
-          🔥 Práctica
-        </button>
-        <button
           className={`opcion ${selectedLevel === 'facil' ? 'seleccionado' : ''}`}
           onClick={() => { setSelectedLevel('facil'); setShowError(false); }}
         >
-          🐔 Fácil
+          Fácil
         </button>
         <button
           className={`opcion ${selectedLevel === 'dificil' ? 'seleccionado' : ''}`}
           onClick={() => { setSelectedLevel('dificil'); setShowError(false); }}
         >
-          🦅 Difícil
+          Mediano
+        </button>
+        <button
+          className={`opcion ${selectedLevel === 'practica' ? 'seleccionado' : ''}`}
+          onClick={() => { setSelectedLevel('practica'); setShowError(false); }}
+        >
+          Difícil
         </button>
       </div>
 

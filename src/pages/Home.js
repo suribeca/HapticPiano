@@ -22,13 +22,13 @@ function Home() {
               className="btn-primary"
               onClick={() => navigate("/practica")}
             >
-              🎶 Comenzar práctica
+              Comenzar práctica
             </button>
             <button
               className="btn-secondary"
               onClick={() => navigate("/piano")}
             >
-              👋 Explorar demo
+              Explorar demo
             </button>
           </div>
         </div>
