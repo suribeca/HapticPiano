@@ -26,7 +26,7 @@ function Home() {
             </button>
             <button
               className="btn-secondary"
-              onClick={() => navigate("/piano")}
+              onClick={() => navigate('/piano', { state: { mode: 'libre' } })}
             >
               Explorar demo
             </button>
