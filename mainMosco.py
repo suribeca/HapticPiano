@@ -265,7 +265,7 @@ def startup_pattern():
     # Todos juntos
     for i in range(3):
         for led in leds: set_led_color(led,1,1,1)
-        for motor in motors: motor.duty_u16(i*10000)
+        for motor in motors: motor.duty_u16(i*18000)
         time.sleep(0.3)
         for led in leds: turn_off_led(led)
         for motor in motors: motor.duty_u16(0)

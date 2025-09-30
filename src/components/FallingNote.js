@@ -61,16 +61,16 @@ export function FallingNote({
         el.style.top = `${top}px`;
       }
 
-      const idealProgress = 0.85;
+      const idealProgress = 0.87;
       const offsetMs = (progress - idealProgress) * duration * 1000;
 
       if (!scored.current && pressedNotes.includes(noteName)) {
-        if (Math.abs(offsetMs) <= 50) {
+        if (Math.abs(offsetMs) <= 60) {
           onScore(100, offsetMs);
           scored.current = true;
           onEnd?.(id);
           return;
-        } else if (Math.abs(offsetMs) <= 100) {
+        } else if (Math.abs(offsetMs) <= 120) {
           onScore(50, offsetMs);
           scored.current = true;
           onEnd?.(id);
@@ -78,11 +78,11 @@ export function FallingNote({
         }
       }
 
-      if (!active && !pressedNotes.includes(noteName) && progress >= 0.80 && progress <= 0.90) {
+      if (!active && !pressedNotes.includes(noteName) && progress >= 0.80 && progress <= 0.94) {
         setActive(true); // verde cuando en zona de acierto pero no presionada
       }
 
-      if (!pressedNotes.includes(noteName) && progress >= 0.92 && !scored.current) {
+      if (!pressedNotes.includes(noteName) && progress >= 0.94 && !scored.current) {
         onScore(0, offsetMs); // miss
         scored.current = true;
         onEnd?.(id);

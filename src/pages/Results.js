@@ -51,7 +51,7 @@ function Results() {
         let color = '#00ff00'; // Verde
         if (offset > 100) {
             color = '#ff0000'; // Rojo
-        } else if (offset > 25) {
+        } else if (offset > 35) {
             color = '#ffff00'; // Amarillo
         }
 
@@ -127,9 +127,9 @@ function Results() {
                 </LineChart>
 
                 <div className="legend">
-                    <p><span className="legend-box green"></span>Perfecto (±25ms)</p>
-                    <p><span className="legend-box yellow"></span>Leve error (±100ms)</p>
-                    <p><span className="legend-box red"></span>Error grave (&gt;100ms)</p>
+                    <p><span className="legend-box green"></span>Perfecto (&lt;±35ms)</p>
+                    <p><span className="legend-box yellow"></span>Leve error (&lt;±100ms)</p>
+                    <p><span className="legend-box red"></span>Error grave (&gt;±100ms)</p>
                 </div>
             </div>
 

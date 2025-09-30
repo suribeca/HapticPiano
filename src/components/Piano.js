@@ -249,10 +249,11 @@ function Piano() {
 
       <div className="piano-container" ref={pianoContainerRef}>
         {/* Mano visual */}
+        {mode === 'libre' &&
         <div className="hand-wrapper">
           <Hand fingerColors={fingerColors} />
         </div>
-
+      }
         {/* Línea de impacto (solo modo canción) */}
         {mode === 'cancion' && <div className="impact-line"></div>}
 
