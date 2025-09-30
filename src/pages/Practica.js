@@ -1,89 +1,148 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import './Practica.css'; // Importa estilos específicos
+// Selector de práctica (sin imágenes)
+// - Carrusel horizontal con tarjetas de canción (título + compositor/etiqueta)
+// - Selector de dificultad en "chips"
+// - Navega a /piano con {mode:"cancion", song, difficulty}
 
-function Practica() {
-  const [selectedSong, setSelectedSong] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState('');
-  const [showError, setShowError] = useState(false);
+import React, { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import "./Practica.css";
+
+const SONGS = [
+  { id: "twinkle", title: "¿Estrellita Dónde Estás?", composer: "Tradicional" },
+  { id: "ode",      title: "Himno a la Alegría",       composer: "L. v. Beethoven" },
+  { id: "lamb",     title: "Mary Tenía un Corderito",  composer: "Tradicional" },
+  { id: "canon",    title: "Canon en D",               composer: "J. Pachelbel" },
+  { id: "solfa",    title: "Do-Re-Mi",                 composer: "R. Rodgers" },
+];
+
+const LEVELS = [
+  { id: "facil", label: "Fácil" },
+  { id: "normal", label: "Normal" },
+  { id: "practica", label: "Difícil" },
+];
+
+export default function Practica() {
   const navigate = useNavigate();
+  const railRef = useRef(null);
+
+  const [selectedSong, setSelectedSong] = useState("");
+  const [selectedLevel, setSelectedLevel] = useState("");
+  const [showError, setShowError] = useState(false);
+
+  const scrollByCards = (dir = 1) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    // Ancho aproximado de tarjeta + gap
+    const card = rail.querySelector(".song-card");
+    const step = card ? card.offsetWidth + 16 : 280;
+    rail.scrollBy({ left: dir * step, behavior: "smooth" });
+  };
 
   const handleStart = () => {
     if (!selectedSong || !selectedLevel) {
       setShowError(true);
       return;
     }
-    // Si todo bien, ir al piano
-    navigate('/piano', {
+    navigate("/piano", {
       state: {
-        mode: 'cancion',
+        mode: "cancion",
         song: selectedSong,
-        difficulty: selectedLevel
-      }
+        difficulty: selectedLevel,
+      },
     });
   };
 
   return (
-    <div className="practica-container">
-      <h2 className="titulo">Selecciona qué deseas practicar</h2>
+    <div className="practice-wrap">
+      <header className="practice-header">
+        <h1 className="practice-title">Elige qué canción deseas practicar</h1>
+        <p className="practice-sub">
+          Desliza para explorar canciones y selecciona la dificultad.
+        </p>
+      </header>
 
-      {/* Canciones */}
-      <div className="opciones-grid">
+      {/* Carrusel horizontal sin imágenes */}
+      <section className="songs-section" aria-label="Lista de canciones">
         <button
-          className={`opcion ${selectedSong === 'twinkle' ? 'seleccionado' : ''}`}
-          onClick={() => { setSelectedSong('twinkle'); setShowError(false); }}
+          className="arrow-btn left"
+          aria-label="Anterior"
+          onClick={() => scrollByCards(-1)}
         >
-          ¿Estrellita Dónde Estás?
+          ‹
         </button>
+
+        <div className="songs-rail" ref={railRef} role="listbox" aria-activedescendant={selectedSong || undefined} tabIndex={0}>
+          {SONGS.map((s) => {
+            const active = selectedSong === s.id;
+            return (
+              <button
+                key={s.id}
+                id={s.id}
+                role="option"
+                aria-selected={active}
+                className={`song-card text-card ${active ? "active" : ""}`}
+                onClick={() => {
+                  setSelectedSong(s.id);
+                  setShowError(false);
+                }}
+              >
+                <div className="song-title">{s.title}</div>
+                <div className="song-sub">{s.composer}</div>
+                {active && <div className="radio-dot" aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </div>
+
         <button
-          className={`opcion ${selectedSong === 'ode' ? 'seleccionado' : ''}`}
-          onClick={() => { setSelectedSong('ode'); setShowError(false); }}
+          className="arrow-btn right"
+          aria-label="Siguiente"
+          onClick={() => scrollByCards(1)}
         >
-          Himno a la Alegría
+          ›
         </button>
+      </section>
+
+      {/* Selector de dificultad */}
+      <section className="levels-section">
+        <h2 className="levels-title">Dificultad</h2>
+        <div className="levels-chips" role="radiogroup" aria-label="Dificultad">
+          {LEVELS.map((lvl) => {
+            const active = selectedLevel === lvl.id;
+            return (
+              <button
+                key={lvl.id}
+                role="radio"
+                aria-checked={active}
+                className={`chip ${active ? "chip-active" : ""}`}
+                onClick={() => {
+                  setSelectedLevel(lvl.id);
+                  setShowError(false);
+                }}
+              >
+                {lvl.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* CTA */}
+      <div className="cta-row">
         <button
-          className={`opcion ${selectedSong === 'lamb' ? 'seleccionado' : ''}`}
-          onClick={() => { setSelectedSong('lamb'); setShowError(false); }}
+          className="start-btn"
+          disabled={!selectedSong || !selectedLevel}
+          onClick={handleStart}
         >
-          Mary tenía un Corderito
+          Comenzar práctica
         </button>
       </div>
-
-      <h2 className="titulo">Dificultad</h2>
-
-      {/* Dificultades */}
-      <div className="opciones-grid">
-        <button
-          className={`opcion ${selectedLevel === 'facil' ? 'seleccionado' : ''}`}
-          onClick={() => { setSelectedLevel('facil'); setShowError(false); }}
-        >
-          Fácil
-        </button>
-        <button
-          className={`opcion ${selectedLevel === 'dificil' ? 'seleccionado' : ''}`}
-          onClick={() => { setSelectedLevel('dificil'); setShowError(false); }}
-        >
-          Mediano
-        </button>
-        <button
-          className={`opcion ${selectedLevel === 'practica' ? 'seleccionado' : ''}`}
-          onClick={() => { setSelectedLevel('practica'); setShowError(false); }}
-        >
-          Difícil
-        </button>
-      </div>
-
-      <button className="boton-practica" onClick={handleStart}>
-        Comenzar práctica
-      </button>
 
       {showError && (
-        <div className="alerta">
-          ⚠️ Debes seleccionar una canción y una dificultad antes de continuar.
+        <div className="error-banner">
+          ⚠️ Selecciona una <b>canción</b> y una <b>dificultad</b> para continuar.
         </div>
       )}
     </div>
   );
 }
-
-export default Practica;

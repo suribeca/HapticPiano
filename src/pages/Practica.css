@@ -1,68 +1,194 @@
-.practica-container {
-  background-color: #2b2d31;
-  color: white;
-  text-align: center;
+/* Layout base */
+.practice-wrap {
   min-height: 100vh;
-  padding: 3rem 1rem;
-  font-family: 'Segoe UI', sans-serif;
+  background: #2b2d31;
+  color: #fff;
+  padding: 24px 16px 64px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-.titulo {
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
-  font-weight: bold;
+.practice-header {
+  max-width: 1100px;
+  margin: 0 auto 18px;
+  padding: 0 8px;
+}
+.practice-title {
+  margin: 0;
+  font-size: clamp(22px, 3.2vw, 32px);
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+.practice-sub {
+  margin: 8px 0 0;
+  color: #cdd1d5;
 }
 
-.opciones-grid {
+/* Carrusel */
+.songs-section {
+  position: relative;
+  max-width: 1100px;
+  margin: 18px auto 26px;
+  padding: 0 44px; /* espacio para flechas */
+}
+
+.songs-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(240px, 320px);
+  gap: 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+  outline: none;
+}
+.songs-rail:focus-visible {
+  box-shadow: 0 0 0 2px #5daeff inset;
+  border-radius: 12px;
+}
+.songs-rail::-webkit-scrollbar {
+  height: 8px;
+}
+.songs-rail::-webkit-scrollbar-thumb {
+  background: #3a3b3f;
+  border-radius: 8px;
+}
+
+/* Tarjeta sin imagen (texto) */
+.song-card {
+  scroll-snap-align: start;
+  background: #1f2125;
+  border: 1px solid #36383d;
+  border-radius: 16px;
+  padding: 16px 14px 18px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease,
+    box-shadow 0.15s ease, background 0.15s ease;
+}
+.song-card:hover {
+  transform: translateY(-2px);
+  border-color: #5d6dff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  background: #23252a;
+}
+.song-card.active {
+  border-color: #5daeff;
+  box-shadow: 0 0 0 3px rgba(93, 174, 255, 0.25);
+}
+.text-card .song-title {
+  font-weight: 800;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+.text-card .song-sub {
+  color: #b8bcc2;
+  font-size: 0.95rem;
+  margin-top: 6px;
+}
+.radio-dot {
+  margin-top: 12px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #00c853;
+  box-shadow: 0 0 0 6px rgba(0, 200, 83, 0.15);
+}
+
+/* Flechas */
+.arrow-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid #3b3d43;
+  background: #17181c;
+  color: #e7eef7;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+  z-index: 2;
+}
+.arrow-btn:hover {
+  background: #24262c;
+}
+.arrow-btn:active {
+  transform: translateY(-50%) scale(0.97);
+}
+.arrow-btn.left { left: 2px; }
+.arrow-btn.right { right: 2px; }
+
+/* Dificultad */
+.levels-section {
+  max-width: 1100px;
+  margin: 0 auto 18px;
+  padding: 0 8px;
+}
+.levels-title {
+  margin: 0 0 20px;
+  font-size: clamp(18px, 2.4vw, 24px);
+  font-weight: 800;
+}
+.levels-chips {
+  display: flex;
+  gap: 35px;
+  flex-wrap: wrap;
+}
+.chip {
+  border: 5px solid #22242b;
+  background: #333844;
+  color: #fffdfd;
+  border-radius: 999px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.chip:hover { border-color: #5d6dff; }
+.chip-active {
+  border-color: #5daeff;
+  background: #293346;
+}
+
+/* CTA */
+.cta-row {
+  max-width: 1100px;
+  margin: 12px auto 0;
+  padding: 0 8px;
   display: flex;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 2rem;
 }
-
-.opcion {
-  background-color: #1c1d20;
-  border: 2px solid #3a3b3f;
-  border-radius: 12px;
-  padding: 1rem 1.5rem;
+.start-btn {
+  background: #19a7ff;
   color: white;
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.opcion:hover {
-  border-color: #5d5dff;
-}
-
-.seleccionado {
-  border-color: #5daeff;
-  background-color: #343b4f;
-}
-
-.boton-practica {
-  margin-top: 1rem;
-  background-color: #19a7ff;
-  color: white;
-  font-weight: bold;
-  padding: 0.8rem 2rem;
   border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: background-color 0.2s ease;
-}
-
-.boton-practica:hover {
-  background-color: #0c85d0;
-}
-
-.alerta {
-  margin-top: 1.5rem;
-  background-color: #ff4f4f;
-  color: white;
-  padding: 1rem;
   border-radius: 10px;
-  font-weight: bold;
+  padding: 12px 22px;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.08s ease;
+}
+.start-btn:hover { background: #0d8ad6; }
+.start-btn:active { transform: scale(0.98); }
+.start-btn:disabled {
+  background: #3a3d44;
+  cursor: not-allowed;
+}
+
+/* Error */
+.error-banner {
+  max-width: 1100px;
+  margin: 16px auto 0;
+  background: #ff4f4f;
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 700;
 }
