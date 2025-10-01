@@ -76,6 +76,12 @@ export function FallingNote({
           onEnd?.(id);
           return;
         }
+        else if (Math.abs(offsetMs) <= 200) {
+          onScore(0, offsetMs);
+          scored.current = true;
+          onEnd?.(id);
+          return;
+        }
       }
 
       if (!active && !pressedNotes.includes(noteName) && progress >= 0.80 && progress <= 0.94) {

@@ -17,12 +17,20 @@ function Piano() {
   const { mode = 'cancion', song = 'ode', difficulty = 'practica' } = location.state || {};
   const practiceMode = difficulty;
 
+  const colors = {
+    active: "#ffffff",
+    perfect: "#00ff00",
+    good: "#00ffff",
+    miss: "#ff0000",
+    idle: "#aaaaaa"
+  };
+
   // ==============================================================
   // Use States
   // ==============================================================
   const [pressedNotes, setPressedNotes] = useState([]);
-  const [fingerColors] = useState({
-    thumb: "#cccccc", index: "#cccccc", middle: "#cccccc", ring: "#cccccc", pinky: "#cccccc"
+  const [fingerColors, setFingerColors] = useState({
+    thumb: colors.idle, index: colors.idle, middle: colors.idle, ring: colors.idle, pinky: colors.idle
   });
   const [fingerStatus, setFingerStatus] = useState({
     thumb: false, index: false, middle: false, ring: false, pinky: false
@@ -135,50 +143,40 @@ function Piano() {
   // Funciones de manejo y envío de estado de dedos
   // ==============================================================
 
-  /*
-  // Publica a MQTT el estado actual de dedos tras cada NoteOn/NoteOff
-  const publishImmediateFeedback = (noteName) => {
-    const feedback = {};
-    for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
-      const pressed = prevFingerStatus.current[finger] || false;
-      feedback[finger] = {
-        pressed,
-        color: pressed ? "#00ff00" : "#cccccc",
-        freq: pressed ? noteToFreq(noteName) : 0
-      };
-    }
-    if (!_.isEqual(feedback, lastPublishedState.current)) {
-      publishFeedback(feedback);
-      lastPublishedState.current = feedback;
-    }
-  };
-  */
 
-  // Mantiene actualizado el ref de notas presionadas
+  // Cuando estemos en modo libre, actualizar colores active/idle según fingerStatus (viene por MQTT)
   useEffect(() => {
-    pressedNotesRef.current = pressedNotes;
-  }, [pressedNotes]);
+    if (mode !== 'libre') return;
+
+    // Construimos el nuevo objeto de colores a partir del estado del guante
+    setFingerColors(prev => {
+      const next = { ...prev };
+      for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
+        next[f] = (fingerStatus && fingerStatus[f]) ? colors.active : colors.idle;
+      }
+      return next;
+    });
+  }, [fingerStatus, mode]); // se ejecuta cuando cambian los datos del guante o el modo
 
 
   // Publicación continua del estado de dedos
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const feedback = {};
-      for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
-        const pressed = prevFingerStatus.current[finger] || false;
-        feedback[finger] = {
-          pressed,
-          color: pressed ? "#00ffff" : "#cccccc",
-          freq: pressed ? noteToFreq(lastNoteRef.current) : 0
-        };
-      }
+useEffect(() => {
+  const interval = setInterval(() => {
+    const feedback = {};
+    for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
+      const pressed = fingerStatus[finger] || false;
+      feedback[finger] = {
+        pressed,
+        color: fingerColors[finger], 
+        freq: pressed ? noteToFreq(lastNoteRef.current) : 0
+      };
+    }
+    publishFeedback(feedback);
+  }, 75);
 
-      publishFeedback(feedback);
+  return () => clearInterval(interval);
+}, [fingerColors, fingerStatus]); // 👈 dependencias añadidas
 
-    }, 75); // cada 50ms (~20Hz)
-
-    return () => clearInterval(interval);
-  }, []);
 
 
   // MIDI handler
@@ -193,6 +191,7 @@ function Piano() {
       setPressedNotes(prev => [...prev, noteName]);
       playNote(noteName);
       lastNoteRef.current = noteName;
+
       //publishImmediateFeedback(noteName);
     }
     if (isNoteOff) {
@@ -239,7 +238,7 @@ function Piano() {
       <div className="topContainer">
         <div className="volver-wrapper">
           <button className="volver-btn" onClick={() => navigate('/')}>
-            Volver al menú 
+            Volver al menú
           </button>
         </div>
         <div className="score-wrapper">
@@ -250,10 +249,10 @@ function Piano() {
       <div className="piano-container" ref={pianoContainerRef}>
         {/* Mano visual */}
         {mode === 'libre' &&
-        <div className="hand-wrapper">
-          <Hand fingerColors={fingerColors} />
-        </div>
-      }
+          <div className="hand-wrapper">
+            <Hand fingerColors={fingerColors} />
+          </div>
+        }
         {/* Línea de impacto (solo modo canción) */}
         {mode === 'cancion' && <div className="impact-line"></div>}
 
