@@ -18,7 +18,7 @@ const SONGS = [
 const LEVELS = [
   { id: "facil", label: "Fácil" },
   { id: "normal", label: "Normal" },
-  { id: "practica", label: "Difícil" },
+  { id: "dificil", label: "Difícil" },
 ];
 
 export default function Practica() {

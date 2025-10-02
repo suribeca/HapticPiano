@@ -1,4 +1,9 @@
 // src/components/Piano.js
+// ===============================================================
+// Componente principal del piano: renderiza teclado, mano, notas
+// descendentes, integra MIDI del teclado/DAW y MQTT con el guante.
+// ===============================================================
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import './Piano.css';
 import { Key } from './Key.js';
@@ -14,9 +19,14 @@ import _ from 'lodash';
 function Piano() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { mode = 'cancion', song = 'ode', difficulty = 'practica' } = location.state || {};
+
+  // `mode`: 'cancion' | 'libre'
+  // `song`: id de la canción (p.ej. 'ode')
+  // `difficulty`: 'facil' | 'normal' | 'dificil'  (compat: 'practica' -> 'normal')
+  const { mode = 'cancion', song = 'ode', difficulty = 'normal' } = location.state || {};
   const practiceMode = difficulty;
 
+  // Paleta de colores para visual de dedos y feedback
   const colors = {
     active: "#ffffff",
     perfect: "#00ff00",
@@ -25,9 +35,9 @@ function Piano() {
     idle: "#aaaaaa"
   };
 
-  // ==============================================================
-  // Use States
-  // ==============================================================
+  // ===============================================================
+  // Estados React
+  // ===============================================================
   const [pressedNotes, setPressedNotes] = useState([]);
   const [fingerColors, setFingerColors] = useState({
     thumb: colors.idle, index: colors.idle, middle: colors.idle, ring: colors.idle, pinky: colors.idle
@@ -35,72 +45,88 @@ function Piano() {
   const [fingerStatus, setFingerStatus] = useState({
     thumb: false, index: false, middle: false, ring: false, pinky: false
   });
-  const [fallingNotes, setFallingNotes] = useState([]);
-  const [showCountdown, setShowCountdown] = useState(false);
+  const [fallingNotes, setFallingNotes] = useState([]);      // lista de {id, note, time}
+  const [showCountdown, setShowCountdown] = useState(false); // overlay de 3-2-1
   const [countdown, setCountdown] = useState(3);
   const [practiceStarted, setPracticeStarted] = useState(false);
   const [score, setScore] = useState(0);
   const [scoreList, setScoreList] = useState([]);
   const [timingOffsets, setTimingOffsets] = useState([]);
 
-  // Modal: visible al cargar. Se cierra sólo cuando la persona pulsa “Entendido”
+  // Modal de instrucciones al entrar
   const [showInstructions, setShowInstructions] = useState(true);
 
-  // ==============================================================
-  // Use Refs
-  // ==============================================================
+  // ===============================================================
+  // Refs (no causan re-render)
+  // ===============================================================
   const prevFingerStatus = useRef({});
-  const lastPublishedState = useRef({});
   const pianoContainerRef = useRef(null);
   const audioRefs = useRef({});
   const lastNoteRef = useRef(null);
-  const pressedNotesRef = useRef([]);
+
+  // Helper para sumar puntaje
   const incrementScore = (total) => setScore(prev => prev + total);
 
-  // ==============================================================
-  // Setup inicial
-  // ==============================================================
+  // ===============================================================
+  // Setup inicial: MIDI, MQTT y carga de notas
+  // ===============================================================
+
+  // Normalizamos dificultad para el nombre de archivo
+  // - 'practica' (legado) => 'normal'
+  const fileDifficulty = (() => {
+    if (difficulty === 'practica') return 'normal';
+    return difficulty;
+  })();
+
   useEffect(() => {
+    // Si faltan datos, regresamos a selección
     if (!song || !difficulty) {
       navigate('/practica');
       return;
     }
 
-    // MIDI
+    // --- MIDI (teclado o DAW) ---
     if (navigator.requestMIDIAccess) {
       navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
     }
 
-    // MQTT
+    // --- MQTT (guante) ---
     connectMQTT(data => {
       setFingerStatus(data);
       prevFingerStatus.current = data;
     });
 
-    // Centrar en DO4 tras montar
+    // --- Centrar el teclado en DO4 (do central) ---
     setTimeout(() => {
       const container = pianoContainerRef.current;
-      const do4 = document.getElementById('do4');
-      if (container && do4) {
-        const offset = do4.offsetLeft + (do4.offsetWidth / 2);
+      const do4Key = document.getElementById('do4');
+      if (container && do4Key) {
+        const offset = do4Key.offsetLeft + (do4Key.offsetWidth / 2);
         container.scrollLeft = offset - container.offsetWidth / 2;
       }
     }, 300);
 
-    // Cargar notas de la canción seleccionada
-    const fileName = `${song}${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}.json`;
+    // --- Carga de notas desde /public/songs ---
+    // Espera archivos con convención: <song><CapDificultad>.json
+    // p.ej. odeFacil.json, odeNormal.json, odeDificil.json
+    const cap = fileDifficulty.charAt(0).toUpperCase() + fileDifficulty.slice(1);
+    const fileName = `${song}${cap}.json`;
+
     fetch(`/songs/${fileName}`)
       .then(res => res.json())
       .then(data => {
-        const withIds = data.map(note => ({ ...note, id: uuidv4() }));
+        // Aseguramos un id único por nota para la lista
+        const withIds = data.map(n => ({ ...n, id: uuidv4() }));
         setFallingNotes(withIds);
+        console.log(`✅ Cargado /songs/${fileName} (${withIds.length} notas)`);
       })
       .catch(err => console.error('Error al cargar notas JSON:', err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ==============================================================
-  // Funciones MIDI 
-  // ==============================================================
+  // ===============================================================
+  // Conexión MIDI
+  // ===============================================================
   const onMIDISuccess = useCallback((midiAccess) => {
     for (let input of midiAccess.inputs.values()) {
       input.onmidimessage = handleMIDIMessage;
@@ -111,21 +137,22 @@ function Piano() {
     console.error("No se pudo acceder a dispositivos MIDI.");
   };
 
+  // ===============================================================
+  // Audio / Haptics helpers
+  // ===============================================================
 
-  // ==============================================================
-  // Funciones auxiliares de audio
-  // ==============================================================
-
-  // Convierte nota a frecuencia de vibración para los motores
+  // Mapea nombre de nota (p.ej. 'do4') a un duty (0..65535) para vibración
   const noteToFreq = (noteName) => {
     const index = NOTES.indexOf(noteName);
     if (index === -1) return 0;
     const ratio = index / NOTES.length;
+    // graves -> duty alto (más fuerte), agudos -> duty menor (más suave)
     return Math.round(65500 - (ratio * (65500 - 20000)));
   };
 
-  // Reproducir audio HTML precargado de las notas
+  // Reproducir audio de la nota (mp3 precargado vía <audio>)
   const playNote = (note) => {
+    // Arreglo legacy para audios específicos 'la', 'zla', 'si'
     const match = note.match(/^(la|zla|si)(\d)$/);
     let correctedNote = note;
     if (match) {
@@ -135,20 +162,17 @@ function Piano() {
     const audio = audioRefs.current[correctedNote];
     if (audio && audio instanceof HTMLAudioElement) {
       audio.currentTime = 0;
-      audio.play().catch(() => { });
+      audio.play().catch(() => {});
     }
   };
 
-  // ==============================================================
-  // Funciones de manejo y envío de estado de dedos
-  // ==============================================================
-
-
-  // Cuando estemos en modo libre, actualizar colores active/idle según fingerStatus (viene por MQTT)
+  // ===============================================================
+  // Actualización visual en modo libre (demostración)
+  // ===============================================================
   useEffect(() => {
     if (mode !== 'libre') return;
 
-    // Construimos el nuevo objeto de colores a partir del estado del guante
+    // Colorea dedos activos (del guante) en blanco y los inactivos en gris
     setFingerColors(prev => {
       const next = { ...prev };
       for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
@@ -156,56 +180,54 @@ function Piano() {
       }
       return next;
     });
-  }, [fingerStatus, mode]); // se ejecuta cuando cambian los datos del guante o el modo
+  }, [fingerStatus, mode, colors.active, colors.idle]);
 
+  // ===============================================================
+  // Publicación periódica de feedback al guante (MQTT)
+  //  - Enviamos el estado de cada dedo con su color actual
+  //  - freq depende de la última nota presionada por MIDI
+  // ===============================================================
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const feedback = {};
+      for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
+        const pressed = fingerStatus[finger] || false;
+        feedback[finger] = {
+          pressed,
+          color: fingerColors[finger],
+          freq: pressed ? noteToFreq(lastNoteRef.current) : 0
+        };
+      }
+      publishFeedback(feedback);
+    }, 75); // 75 ms ~ 13Hz; equilibrio entre latencia y tráfico
 
-  // Publicación continua del estado de dedos
-useEffect(() => {
-  const interval = setInterval(() => {
-    const feedback = {};
-    for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
-      const pressed = fingerStatus[finger] || false;
-      feedback[finger] = {
-        pressed,
-        color: fingerColors[finger], 
-        freq: pressed ? noteToFreq(lastNoteRef.current) : 0
-      };
-    }
-    publishFeedback(feedback);
-  }, 75);
+    return () => clearInterval(interval);
+  }, [fingerColors, fingerStatus]); // reprograma el intervalo si cambian colores/estado
 
-  return () => clearInterval(interval);
-}, [fingerColors, fingerStatus]); // 👈 dependencias añadidas
-
-
-
-  // MIDI handler
+  // ===============================================================
+  // Handler MIDI (note on/off)
+  // ===============================================================
   const handleMIDIMessage = ({ data }) => {
     const [status, noteNumber, velocity] = data;
-    const isNoteOn = status === 144 && velocity > 0;
+    const isNoteOn  = status === 144 && velocity > 0;
     const isNoteOff = status === 128 || (status === 144 && velocity === 0);
-    const noteName = MIDI_TO_NOTE[noteNumber];
+    const noteName  = MIDI_TO_NOTE[noteNumber];
     if (!noteName) return;
 
     if (isNoteOn) {
       setPressedNotes(prev => [...prev, noteName]);
       playNote(noteName);
       lastNoteRef.current = noteName;
-
-      //publishImmediateFeedback(noteName);
     }
     if (isNoteOff) {
       setPressedNotes(prev => prev.filter(n => n !== noteName));
       lastNoteRef.current = null;
-      //publishImmediateFeedback(noteName);
     }
   };
 
-
-
-  // ==============================================================
-  // Funciones de cuenta regresiva y render
-  // ==============================================================
+  // ===============================================================
+  // Cuenta regresiva antes de iniciar práctica
+  // ===============================================================
   const startCountdown = () => {
     setShowCountdown(true);
     setCountdown(3);
@@ -221,7 +243,10 @@ useEffect(() => {
     }, 1000);
   };
 
-  // ------------------ Render ------------------
+  // ===============================================================
+  // Render helpers
+  // ===============================================================
+  // Filtra el teclado visual a octavas útiles (<= 6) para no saturar pantalla
   const VISIBLE_NOTES = NOTES.filter(n => {
     const match = n.match(/\d$/);
     return match && parseInt(match[0]) <= 6;
@@ -229,12 +254,12 @@ useEffect(() => {
 
   const containerHeight = 350;
 
-  // ==============================================================
-  // Render principal CSS
-  // ==============================================================
+  // ===============================================================
+  // Render
+  // ===============================================================
   return (
     <div style={{ backgroundColor: '#2b2d31', minHeight: '100vh' }}>
-      {/* Top bar con puntaje */}
+      {/* Barra superior con botón de regreso y puntaje */}
       <div className="topContainer">
         <div className="volver-wrapper">
           <button className="volver-btn" onClick={() => navigate('/')}>
@@ -246,26 +271,32 @@ useEffect(() => {
         </div>
       </div>
 
+      {/* Contenedor principal del piano */}
       <div className="piano-container" ref={pianoContainerRef}>
-        {/* Mano visual */}
-        {mode === 'libre' &&
+
+        {/* Mano (solo en modo libre/demo) */}
+        {mode === 'libre' && (
           <div className="hand-wrapper">
             <Hand fingerColors={fingerColors} />
           </div>
-        }
-        {/* Línea de impacto (solo modo canción) */}
+        )}
+
+        {/* Línea roja de impacto (solo modo canción) */}
         {mode === 'cancion' && <div className="impact-line"></div>}
 
-        {/* Notas descendentes (cuando inicia la práctica) */}
+        {/* Notas descendentes (aparecen cuando inicia la práctica) */}
         {mode === 'cancion' && practiceStarted && (
-          <div className="note-visualizer" style={{
-            position: 'absolute',
-            top: 0,
-            height: containerHeight,
-            width: '100%',
-            pointerEvents: 'none',
-            zIndex: 3
-          }}>
+          <div
+            className="note-visualizer"
+            style={{
+              position: 'absolute',
+              top: 0,
+              height: containerHeight,
+              width: '100%',
+              pointerEvents: 'none',
+              zIndex: 3
+            }}
+          >
             {fallingNotes.map((n) => (
               <FallingNote
                 key={n.id}
@@ -285,6 +316,7 @@ useEffect(() => {
                   setFallingNotes(prev => {
                     const updated = prev.filter(note => note.id !== id);
                     if (updated.length === 0) {
+                      // cuando acaban todas, ir a resultados
                       setTimeout(() => {
                         navigate('/results', {
                           state: { score, timingOffsets, scores: scoreList }
@@ -299,14 +331,14 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Teclado */}
+        {/* Teclado visual */}
         <div className="piano">
           {VISIBLE_NOTES.map((note, index) => (
             <Key key={index} note={note} pressedKeys={pressedNotes} />
           ))}
         </div>
 
-        {/* Audios precargados */}
+        {/* Audios precargados para minimizar latencia al tocar */}
         <div style={{ display: "none" }}>
           {NOTES.map((note, i) => (
             <audio
@@ -319,7 +351,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* ------------------ MODAL DE INSTRUCCIONES ------------------ */}
+      {/* ================= MODAL DE INSTRUCCIONES ================= */}
       {showInstructions && (
         <div className="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="howto-title">
           <div className="modalCard">
@@ -333,12 +365,11 @@ useEffect(() => {
 
             <h2 id="howto-title" className="modalTitle">¿Cómo usar esta práctica?</h2>
 
-            {/* Texto distinto según el modo */}
             {mode === 'cancion' ? (
               <>
                 <p className="modalP">
                   Las notas descenderán hasta sus teclas. Presiona la tecla cuando la nota toque la
-                  <span className="lineaRoja"> línea roja</span> y se prenda de color <span className="notaVerde">verde</span>.
+                  <span className="lineaRoja"> línea roja</span> para puntuar mejor.
                 </p>
                 <ul className="modalList">
                   <li>Exacto en la línea roja: <strong>100 puntos</strong></li>
@@ -377,7 +408,7 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Cuenta regresiva (overlay simple) */}
+      {/* Overlay simple del conteo 3-2-1 */}
       {showCountdown && (
         <div className="modalOverlay" aria-hidden="true">
           <div className="countdownBubble">{countdown}</div>
