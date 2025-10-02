@@ -12,7 +12,7 @@ import { MIDI_TO_NOTE } from '../global/constants';
  * @param {number} containerHeight - Altura del contenedor visual
  * @param {function} onScore - Callback para registrar puntaje y offset
  * @param {function} onEnd - Callback para eliminar nota del DOM
- * @param {boolean} practiceMode - Modo práctica (no usado aquí pero útil)
+ * @param {boolean} practiceMode - Modo práctica 
  * @param {string[]} pressedNotes - Notas actualmente presionadas
  */
 export function FallingNote({
@@ -35,6 +35,10 @@ export function FallingNote({
   const scored = useRef(false); // ✅ para evitar múltiples puntajes
   const startAt = useRef(performance.now() + time * 1000);
 
+  //==============================================================
+  // Efectos y logica
+  //==============================================================
+  
   // Posicionamiento inicial
   useEffect(() => {
     const key = document.getElementById(noteName);
@@ -108,6 +112,9 @@ export function FallingNote({
 
   if (!rendered || left === null) return null;
 
+  //==============================================================
+  // Render
+  //==============================================================
   return (
     <div
       id={`falling-${id}`}

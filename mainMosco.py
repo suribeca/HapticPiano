@@ -256,7 +256,7 @@ def startup_pattern():
     """Patrón de inicio - testea LEDs y motores secuencialmente y en grupo"""
     print("Iniciando patrón de LEDs y motores...")
     for i, led in enumerate(leds):
-        time.sleep(0.5)
+        time.sleep(0.4)
         # Rojo, verde, azul secuencial
         set_led_color(led, 1,0,0); motors[i].duty_u16(10000); time.sleep(0.2)
         set_led_color(led, 0,1,0); motors[i].duty_u16(20000); time.sleep(0.2)
@@ -265,7 +265,7 @@ def startup_pattern():
     # Todos juntos
     for i in range(3):
         for led in leds: set_led_color(led,1,1,1)
-        for motor in motors: motor.duty_u16(i*18000)
+        for motor in motors: motor.duty_u16(i*20000)
         time.sleep(0.3)
         for led in leds: turn_off_led(led)
         for motor in motors: motor.duty_u16(0)

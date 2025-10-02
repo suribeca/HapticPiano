@@ -36,7 +36,7 @@ function Piano() {
   };
 
   // ===============================================================
-  // Estados React
+  // Use States
   // ===============================================================
   const [pressedNotes, setPressedNotes] = useState([]);
   const [fingerColors, setFingerColors] = useState({
@@ -52,12 +52,13 @@ function Piano() {
   const [score, setScore] = useState(0);
   const [scoreList, setScoreList] = useState([]);
   const [timingOffsets, setTimingOffsets] = useState([]);
+  const [lastScore, setLastScore] = useState(0);
 
   // Modal de instrucciones al entrar
   const [showInstructions, setShowInstructions] = useState(true);
 
   // ===============================================================
-  // Refs (no causan re-render)
+  // Use Refs
   // ===============================================================
   const prevFingerStatus = useRef({});
   const pianoContainerRef = useRef(null);
@@ -138,7 +139,7 @@ function Piano() {
   };
 
   // ===============================================================
-  // Audio / Haptics helpers
+  // Funciones auxiliares de audio
   // ===============================================================
 
   // Mapea nombre de nota (p.ej. 'do4') a un duty (0..65535) para vibración
@@ -162,17 +163,18 @@ function Piano() {
     const audio = audioRefs.current[correctedNote];
     if (audio && audio instanceof HTMLAudioElement) {
       audio.currentTime = 0;
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
     }
   };
 
-  // ===============================================================
-  // Actualización visual en modo libre (demostración)
-  // ===============================================================
+  // ==============================================================
+  // Funciones de manejo y envío de estado de dedos
+  // ==============================================================
+
+
+  // Cambia colores de dedos según estado recibido - Modo Libre
   useEffect(() => {
     if (mode !== 'libre') return;
-
-    // Colorea dedos activos (del guante) en blanco y los inactivos en gris
     setFingerColors(prev => {
       const next = { ...prev };
       for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
@@ -180,13 +182,29 @@ function Piano() {
       }
       return next;
     });
-  }, [fingerStatus, mode, colors.active, colors.idle]);
+  }, [fingerStatus, mode]);
 
-  // ===============================================================
-  // Publicación periódica de feedback al guante (MQTT)
-  //  - Enviamos el estado de cada dedo con su color actual
-  //  - freq depende de la última nota presionada por MIDI
-  // ===============================================================
+
+  useEffect(() => {
+    if (mode !== 'cancion' || !lastScore) return;
+
+    let color;
+    if (lastScore === 100) color = colors.perfect;
+    else if (lastScore === 50) color = colors.good;
+    else if (lastScore === 0) color = colors.miss;
+    else color = colors.idle;
+
+    setFingerColors(prev => {
+      const next = { ...prev };
+      for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
+        next[f] = (fingerStatus && fingerStatus[f]) ? color : colors.idle;
+      }
+      return next;
+    });
+
+  }, [lastScore, fingerStatus, mode]);
+
+  // Publicación continua del estado de dedos
   useEffect(() => {
     const interval = setInterval(() => {
       const feedback = {};
@@ -199,19 +217,19 @@ function Piano() {
         };
       }
       publishFeedback(feedback);
-    }, 75); // 75 ms ~ 13Hz; equilibrio entre latencia y tráfico
+    }, 75);
 
     return () => clearInterval(interval);
-  }, [fingerColors, fingerStatus]); // reprograma el intervalo si cambian colores/estado
+  }, [fingerColors, fingerStatus]);
 
-  // ===============================================================
-  // Handler MIDI (note on/off)
-  // ===============================================================
+
+
+  // MIDI handler
   const handleMIDIMessage = ({ data }) => {
     const [status, noteNumber, velocity] = data;
-    const isNoteOn  = status === 144 && velocity > 0;
+    const isNoteOn = status === 144 && velocity > 0;
     const isNoteOff = status === 128 || (status === 144 && velocity === 0);
-    const noteName  = MIDI_TO_NOTE[noteNumber];
+    const noteName = MIDI_TO_NOTE[noteNumber];
     if (!noteName) return;
 
     if (isNoteOn) {
@@ -219,6 +237,7 @@ function Piano() {
       playNote(noteName);
       lastNoteRef.current = noteName;
     }
+
     if (isNoteOff) {
       setPressedNotes(prev => prev.filter(n => n !== noteName));
       lastNoteRef.current = null;
@@ -311,6 +330,7 @@ function Piano() {
                   setScore(prev => prev + inc);
                   setScoreList(prev => [...prev, inc]);
                   setTimingOffsets(prev => [...prev, offsetMs]);
+                  setLastScore(inc);
                 }}
                 onEnd={(id) => {
                   setFallingNotes(prev => {
