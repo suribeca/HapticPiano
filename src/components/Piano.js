@@ -16,6 +16,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import _ from 'lodash';
 
+import { useNoteToFreq, usePlayNote } from '../hooks/useAudio.js';
+import { useMIDI } from '../hooks/useMIDI.js';
+import { useCountdown } from '../hooks/useCountdown.js';
+import { useMQTTFeedback } from '../hooks/useMQTTFeedback.js';
+
 function Piano() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -53,8 +58,6 @@ function Piano() {
     pinky: 0,
   });
   const [fallingNotes, setFallingNotes] = useState([]);      // lista de {id, note, time}
-  const [showCountdown, setShowCountdown] = useState(false); // overlay de 3-2-1
-  const [countdown, setCountdown] = useState(3);
   const [practiceStarted, setPracticeStarted] = useState(false);
   const [score, setScore] = useState(0);
   const [scoreList, setScoreList] = useState([]);
@@ -71,10 +74,45 @@ function Piano() {
   // ===============================================================
   const prevFingerStatus = useRef({});
   const pianoContainerRef = useRef(null);
-  const audioRefs = useRef({});
 
   // Helper para sumar puntaje
   const incrementScore = (total) => setScore(prev => prev + total);
+
+  // ===============================================================
+  // Hooks de audio
+  // ===============================================================
+  const noteToFreq = useNoteToFreq(NOTES);
+  const { playNote, audioRefs } = usePlayNote();
+
+  // ===============================================================
+  // Hook MIDI
+  // ===============================================================
+  useMIDI(
+    // onNoteOn callback
+    (noteName) => {
+      setPressedNotes(prev => [...prev, noteName]);
+      playNote(noteName);
+      setLastNote(noteName);
+    },
+    // onNoteOff callback
+    (noteName) => {
+      setPressedNotes(prev => prev.filter(n => n !== noteName));
+      setLastNote(null);
+    }
+  );
+
+  // ===============================================================
+  // Hook Countdown
+  // ===============================================================
+  const { showCountdown, countdown, startCountdown } = useCountdown(3, () => {
+    setPracticeStarted(true);
+  });
+
+  // ===============================================================
+  // Hook MQTT Feedback
+  // ===============================================================
+  useMQTTFeedback(fingerStatus, fingerColors, fingerFreqs, 70);
+
 
   // ===============================================================
   // Setup inicial: MIDI, MQTT y carga de notas
@@ -92,11 +130,6 @@ function Piano() {
     if (!song || !difficulty) {
       navigate('/practica');
       return;
-    }
-
-    // --- MIDI (teclado o DAW) ---
-    if (navigator.requestMIDIAccess) {
-      navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
     }
 
     // --- MQTT (guante) ---
@@ -133,48 +166,6 @@ function Piano() {
       .catch(err => console.error('Error al cargar notas JSON:', err));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ===============================================================
-  // Conexión MIDI
-  // ===============================================================
-  const onMIDISuccess = useCallback((midiAccess) => {
-    for (let input of midiAccess.inputs.values()) {
-      input.onmidimessage = handleMIDIMessage;
-    }
-  }, []);
-
-  const onMIDIFailure = () => {
-    console.error("No se pudo acceder a dispositivos MIDI.");
-  };
-
-  // ===============================================================
-  // Funciones auxiliares de audio
-  // ===============================================================
-
-  // Mapea nombre de nota (p.ej. 'do4') a un duty (0..65535) para vibración
-  const noteToFreq = (noteName) => {
-    const index = NOTES.indexOf(noteName);
-    if (index === -1) return 0;
-    const ratio = index / NOTES.length;
-    // graves -> duty alto (más fuerte), agudos -> duty menor (más suave)
-    return Math.round(65500 - (ratio * (65500 - 20000)));
-  };
-
-  // Reproducir audio de la nota (mp3 precargado vía <audio>)
-  const playNote = (note) => {
-    // Arreglo legacy para audios específicos 'la', 'zla', 'si'
-    const match = note.match(/^(la|zla|si)(\d)$/);
-    let correctedNote = note;
-    if (match) {
-      const [, base, octave] = match;
-      correctedNote = `${base}${parseInt(octave) + 1}`;
-    }
-    const audio = audioRefs.current[correctedNote];
-    if (audio && audio instanceof HTMLAudioElement) {
-      audio.currentTime = 0;
-      audio.play().catch(() => { });
-    }
-  };
 
   // ==============================================================
   // Funciones de manejo y envío de estado de dedos
@@ -224,67 +215,6 @@ function Piano() {
     setFingerFreqs(updated);
   }, [fingerStatus, lastNote]);
 
-
-
-
-  // Publicación continua del estado de dedos
-  useEffect(() => {
-    const interval = setInterval(() => {
-
-      const feedback = {};
-      for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
-        const pressed = fingerStatus[finger] || false;
-        feedback[finger] = {
-          pressed,
-          color: fingerColors[finger],
-          freq: pressed ? noteToFreq(lastNote) : 0
-        };
-      }
-      publishFeedback(feedback);
-    }, 75);
-
-    return () => clearInterval(interval);
-  }, [fingerColors, fingerStatus]);
-
-
-
-  // MIDI handler
-  const handleMIDIMessage = ({ data }) => {
-    const [status, noteNumber, velocity] = data;
-    const isNoteOn = status === 144 && velocity > 0;
-    const isNoteOff = status === 128 || (status === 144 && velocity === 0);
-    const noteName = MIDI_TO_NOTE[noteNumber];
-    if (!noteName) return;
-
-    if (isNoteOn) {
-      setPressedNotes(prev => [...prev, noteName]);
-      playNote(noteName);
-      setLastNote(noteName);
-    }
-
-    if (isNoteOff) {
-      setPressedNotes(prev => prev.filter(n => n !== noteName));
-      setLastNote(null);
-    }
-  };
-
-  // ===============================================================
-  // Cuenta regresiva antes de iniciar práctica
-  // ===============================================================
-  const startCountdown = () => {
-    setShowCountdown(true);
-    setCountdown(3);
-    const interval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev === 1) {
-          clearInterval(interval);
-          setShowCountdown(false);
-          setPracticeStarted(true);
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
 
   // ===============================================================
   // Render helpers
