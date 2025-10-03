@@ -4,22 +4,33 @@
 // descendentes, integra MIDI del teclado/DAW y MQTT con el guante.
 // ===============================================================
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './Piano.css';
 import { Key } from './Key.js';
 import { Hand } from './Hand.js';
-import { NOTES, MIDI_TO_NOTE } from '../global/constants';
-import { connectMQTT, publishFeedback } from '../services/MqttClient';
+import { NOTES } from '../global/constants';
+import { connectMQTT } from '../services/MqttClient';
 import { FallingNote } from './FallingNote';
 import './FallingNote.css';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
-import _ from 'lodash';
+//import _ from 'lodash';
 
 import { useNoteToFreq, usePlayNote } from '../hooks/useAudio.js';
 import { useMIDI } from '../hooks/useMIDI.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { useMQTTFeedback } from '../hooks/useMQTTFeedback.js';
+
+
+// Paleta de colores para visual de dedos y feedback
+const colors = {
+  active: "#ffffff",
+  perfect: "#00ff00",
+  good: "#00ffff",
+  miss: "#ff0000",
+  idle: "#aaaaaa"
+};
+
 
 function Piano() {
   const location = useLocation();
@@ -31,14 +42,7 @@ function Piano() {
   const { mode = 'cancion', song = 'ode', difficulty = 'normal' } = location.state || {};
   const practiceMode = difficulty;
 
-  // Paleta de colores para visual de dedos y feedback
-  const colors = {
-    active: "#ffffff",
-    perfect: "#00ff00",
-    good: "#00ffff",
-    miss: "#ff0000",
-    idle: "#aaaaaa"
-  };
+
 
   // ===============================================================
   // Use States
@@ -76,17 +80,17 @@ function Piano() {
   const pianoContainerRef = useRef(null);
 
   // Helper para sumar puntaje
-  const incrementScore = (total) => setScore(prev => prev + total);
+  //const incrementScore = (total) => setScore(prev => prev + total);
 
   // ===============================================================
-  // Hooks de audio
+  // Hooks
   // ===============================================================
+
+  // Hook Audio
   const noteToFreq = useNoteToFreq(NOTES);
   const { playNote, audioRefs } = usePlayNote();
 
-  // ===============================================================
   // Hook MIDI
-  // ===============================================================
   useMIDI(
     // onNoteOn callback
     (noteName) => {
@@ -101,16 +105,12 @@ function Piano() {
     }
   );
 
-  // ===============================================================
   // Hook Countdown
-  // ===============================================================
   const { showCountdown, countdown, startCountdown } = useCountdown(3, () => {
     setPracticeStarted(true);
   });
 
-  // ===============================================================
   // Hook MQTT Feedback
-  // ===============================================================
   useMQTTFeedback(fingerStatus, fingerColors, fingerFreqs, 70);
 
 
@@ -213,7 +213,7 @@ function Piano() {
       updated[finger] = pressed ? noteToFreq(lastNote) : 0;
     }
     setFingerFreqs(updated);
-  }, [fingerStatus, lastNote]);
+  }, [fingerStatus, lastNote, noteToFreq]);
 
 
   // ===============================================================
