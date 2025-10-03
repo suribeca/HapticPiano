@@ -29,14 +29,22 @@ Cada vez que el usuario presiona un sensor:
 3. Crear C:\mosquitto\mosquitto.conf
 4. Habilitar el firewall Puerto → TCP → 1883, 9001 → Permitir → Redes privadas → Nombre “Mosquitto MQTT/WS”.
 
-## Arranque y prueba de Mosquitto (siempre desde dond esté el Mosquitto)
+
+## Ejecución del sistema
+1. Tener Mosquitto instalado en C:
+2. Ejecutar mosquittoStartup.bat en terminal
+3. Correr mainMosco.py en Thonny
+4. Tras la prueba de actuadores, conectarse a la red HapticGlove
+5. Ejecutar npm run, iniciar el programa y ser feli
+
+<!--
+## Arranque y prueba de Mosquitto (siempre desde donde esté el Mosquitto)
 1. En una cmd correr mosquitto.exe -v -c mosquitto.conf
 2. Subscripción: mosquitto_sub -h localhost -t test_sensor_data -v
 3. Publicación: mosquitto_pub -h localhost -t test_sensor_data -m "Hello Test 1"
 4. En vscode checar el .env y poner IPv4
 5. En Thonny checar y poner IPv4 + wifi
 6. Correr y ser feli
-
-
+-->
 
 

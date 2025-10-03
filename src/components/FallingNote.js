@@ -12,7 +12,6 @@ import { MIDI_TO_NOTE } from '../global/constants';
  * @param {number} containerHeight - Altura del contenedor visual
  * @param {function} onScore - Callback para registrar puntaje y offset
  * @param {function} onEnd - Callback para eliminar nota del DOM
- * @param {boolean} practiceMode - Modo práctica 
  * @param {string[]} pressedNotes - Notas actualmente presionadas
  */
 export function FallingNote({
@@ -23,7 +22,6 @@ export function FallingNote({
   containerHeight = 300,
   onScore = (score, offsetMs) => { },
   onEnd,
-  practiceMode = false,
   pressedNotes = []
 }) {
   const [left, setLeft] = useState(null);
@@ -101,14 +99,14 @@ export function FallingNote({
 
       if (progress < 1) {
         requestRef.current = requestAnimationFrame(animate);
-      } else if (!practiceMode || pressedNotes.includes(noteName)) {
+      } else if (pressedNotes.includes(noteName)) {
         onEnd?.(id);
       }
     };
 
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
-  }, [left, pressedNotes, id, duration, containerHeight, onEnd, noteName, practiceMode, onScore]);
+  }, [left, pressedNotes, id, duration, containerHeight, onEnd, noteName, onScore]);
 
   if (!rendered || left === null) return null;
 

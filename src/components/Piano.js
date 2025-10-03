@@ -45,6 +45,13 @@ function Piano() {
   const [fingerStatus, setFingerStatus] = useState({
     thumb: false, index: false, middle: false, ring: false, pinky: false
   });
+  const [fingerFreqs, setFingerFreqs] = useState({
+    thumb: 0,
+    index: 0,
+    middle: 0,
+    ring: 0,
+    pinky: 0,
+  });
   const [fallingNotes, setFallingNotes] = useState([]);      // lista de {id, note, time}
   const [showCountdown, setShowCountdown] = useState(false); // overlay de 3-2-1
   const [countdown, setCountdown] = useState(3);
@@ -53,6 +60,8 @@ function Piano() {
   const [scoreList, setScoreList] = useState([]);
   const [timingOffsets, setTimingOffsets] = useState([]);
   const [lastScore, setLastScore] = useState(0);
+  const [lastNote, setLastNote] = useState(null);
+
 
   // Modal de instrucciones al entrar
   const [showInstructions, setShowInstructions] = useState(true);
@@ -63,7 +72,6 @@ function Piano() {
   const prevFingerStatus = useRef({});
   const pianoContainerRef = useRef(null);
   const audioRefs = useRef({});
-  const lastNoteRef = useRef(null);
 
   // Helper para sumar puntaje
   const incrementScore = (total) => setScore(prev => prev + total);
@@ -118,6 +126,7 @@ function Piano() {
       .then(data => {
         // Aseguramos un id único por nota para la lista
         const withIds = data.map(n => ({ ...n, id: uuidv4() }));
+        //Rellenamos el arreglo de notas descendentes
         setFallingNotes(withIds);
         console.log(`✅ Cargado /songs/${fileName} (${withIds.length} notas)`);
       })
@@ -184,7 +193,7 @@ function Piano() {
     });
   }, [fingerStatus, mode]);
 
-
+  // Cambia colores de dedos según último puntaje - Modo Canción
   useEffect(() => {
     if (mode !== 'cancion' || !lastScore) return;
 
@@ -204,16 +213,31 @@ function Piano() {
 
   }, [lastScore, fingerStatus, mode]);
 
+  // Cuando cambien los dedos o la última nota, recalculamos frecuencias
+  useEffect(() => {
+    if (!lastNote) return;
+    const updated = {};
+    for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
+      const pressed = fingerStatus[finger] || false;
+      updated[finger] = pressed ? noteToFreq(lastNote) : 0;
+    }
+    setFingerFreqs(updated);
+  }, [fingerStatus, lastNote]);
+
+
+
+
   // Publicación continua del estado de dedos
   useEffect(() => {
     const interval = setInterval(() => {
+
       const feedback = {};
       for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
         const pressed = fingerStatus[finger] || false;
         feedback[finger] = {
           pressed,
           color: fingerColors[finger],
-          freq: pressed ? noteToFreq(lastNoteRef.current) : 0
+          freq: pressed ? noteToFreq(lastNote) : 0
         };
       }
       publishFeedback(feedback);
@@ -235,12 +259,12 @@ function Piano() {
     if (isNoteOn) {
       setPressedNotes(prev => [...prev, noteName]);
       playNote(noteName);
-      lastNoteRef.current = noteName;
+      setLastNote(noteName);
     }
 
     if (isNoteOff) {
       setPressedNotes(prev => prev.filter(n => n !== noteName));
-      lastNoteRef.current = null;
+      setLastNote(null);
     }
   };
 
