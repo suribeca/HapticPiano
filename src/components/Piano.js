@@ -1,4 +1,3 @@
-// src/components/Piano.js
 // ===============================================================
 // Componente principal del piano: renderiza teclado, mano, notas
 // descendentes, integra MIDI del teclado/DAW y MQTT con el guante.
@@ -6,20 +5,20 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import './Piano.css';
+import './FallingNote.css';
 import { Key } from './Key.js';
 import { Hand } from './Hand.js';
+import { FallingNote } from './FallingNote';
 import { NOTES } from '../global/constants';
 import { connectMQTT } from '../services/MqttClient';
-import { FallingNote } from './FallingNote';
-import './FallingNote.css';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { v4 as uuidv4 } from 'uuid';
-//import _ from 'lodash';
-
 import { useNoteToFreq, usePlayNote } from '../hooks/useAudio.js';
 import { useMIDI } from '../hooks/useMIDI.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { useMQTTFeedback } from '../hooks/useMQTTFeedback.js';
+import { useFingerColors } from '../hooks/useFingerColors.js';
+import { useFingerFreqs } from '../hooks/useFingerFreqs.js';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 
 
 // Paleta de colores para visual de dedos y feedback
@@ -28,9 +27,9 @@ const colors = {
   perfect: "#00ff00",
   good: "#00ffff",
   miss: "#ff0000",
-  idle: "#aaaaaa"
+  idle: "#aaaaaa",
+  inactive: "#777777"
 };
-
 
 function Piano() {
   const location = useLocation();
@@ -41,8 +40,6 @@ function Piano() {
   // `difficulty`: 'facil' | 'normal' | 'dificil'  (compat: 'practica' -> 'normal')
   const { mode = 'cancion', song = 'ode', difficulty = 'normal' } = location.state || {};
   const practiceMode = difficulty;
-
-
 
   // ===============================================================
   // Use States
@@ -68,7 +65,7 @@ function Piano() {
   const [timingOffsets, setTimingOffsets] = useState([]);
   const [lastScore, setLastScore] = useState(0);
   const [lastNote, setLastNote] = useState(null);
-
+  const [lastActiveFinger, setLastActiveFinger] = useState(null);
 
   // Modal de instrucciones al entrar
   const [showInstructions, setShowInstructions] = useState(true);
@@ -78,9 +75,6 @@ function Piano() {
   // ===============================================================
   const prevFingerStatus = useRef({});
   const pianoContainerRef = useRef(null);
-
-  // Helper para sumar puntaje
-  //const incrementScore = (total) => setScore(prev => prev + total);
 
   // ===============================================================
   // Hooks
@@ -110,9 +104,17 @@ function Piano() {
     setPracticeStarted(true);
   });
 
+  // Hook Finger Colors
+  useFingerColors(mode, fingerStatus, pressedNotes, lastScore, lastActiveFinger, setFingerColors, colors);
+
+
+
   // Hook MQTT Feedback
   useMQTTFeedback(fingerStatus, fingerColors, fingerFreqs, 70);
 
+
+  // Hook Finger Frequencies 
+  useFingerFreqs(mode, fingerStatus, lastNote, lastActiveFinger, noteToFreq, setFingerFreqs, setLastActiveFinger);
 
   // ===============================================================
   // Setup inicial: MIDI, MQTT y carga de notas
@@ -166,54 +168,6 @@ function Piano() {
       .catch(err => console.error('Error al cargar notas JSON:', err));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ==============================================================
-  // Funciones de manejo y envío de estado de dedos
-  // ==============================================================
-
-
-  // Cambia colores de dedos según estado recibido - Modo Libre
-  useEffect(() => {
-    if (mode !== 'libre') return;
-    setFingerColors(prev => {
-      const next = { ...prev };
-      for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
-        next[f] = (fingerStatus && fingerStatus[f]) ? colors.active : colors.idle;
-      }
-      return next;
-    });
-  }, [fingerStatus, mode]);
-
-  // Cambia colores de dedos según último puntaje - Modo Canción
-  useEffect(() => {
-    if (mode !== 'cancion' || !lastScore) return;
-
-    let color;
-    if (lastScore === 100) color = colors.perfect;
-    else if (lastScore === 50) color = colors.good;
-    else if (lastScore === 0) color = colors.miss;
-    else color = colors.idle;
-
-    setFingerColors(prev => {
-      const next = { ...prev };
-      for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
-        next[f] = (fingerStatus && fingerStatus[f]) ? color : colors.idle;
-      }
-      return next;
-    });
-
-  }, [lastScore, fingerStatus, mode]);
-
-  // Cuando cambien los dedos o la última nota, recalculamos frecuencias
-  useEffect(() => {
-    if (!lastNote) return;
-    const updated = {};
-    for (const finger of ["thumb", "index", "middle", "ring", "pinky"]) {
-      const pressed = fingerStatus[finger] || false;
-      updated[finger] = pressed ? noteToFreq(lastNote) : 0;
-    }
-    setFingerFreqs(updated);
-  }, [fingerStatus, lastNote, noteToFreq]);
 
 
   // ===============================================================
@@ -285,6 +239,9 @@ function Piano() {
                   setScoreList(prev => [...prev, inc]);
                   setTimingOffsets(prev => [...prev, offsetMs]);
                   setLastScore(inc);
+                  if (inc === 0) {
+                    setLastActiveFinger(null);
+                  }
                 }}
                 onEnd={(id) => {
                   setFallingNotes(prev => {
