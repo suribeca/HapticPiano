@@ -44,10 +44,22 @@ const MIDI_TO_NOTE = {
   84: 'do6'
 };
 
+// Paleta de colores para visual de dedos y feedback
+const COLORS = {
+  active: "#ffffff",
+  perfect: "#00ff00",
+  good: "#00ffff",
+  miss: "#ff0000",
+  inactive: "#777777"
+};
+
+
+
 const FINGERS_IN_ORDER = ['thumb', 'index', 'middle', 'ring', 'pinky'];
 
 export {
   NOTES,
   MIDI_TO_NOTE,
   FINGERS_IN_ORDER,
+  COLORS,
 };

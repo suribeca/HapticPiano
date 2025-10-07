@@ -31,11 +31,11 @@ export const useFingerColors = (
       for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
         // Solo activo si el sensor está presionado Y hay notas MIDI activas
         const isActive = (fingerStatus && fingerStatus[f]) && hasNotesPressed;
-        next[f] = isActive ? colors.active : colors.idle;
+        next[f] = isActive ? colors.active : colors.inactive;
       }
       return next;
     });
-  }, [fingerStatus, pressedNotes, mode, colors.active, colors.idle, setFingerColors]);
+  }, [fingerStatus, pressedNotes, mode, colors.active, colors.inactive, setFingerColors]);
 
   // Modo Canción: colores según el puntaje obtenido
   useEffect(() => {
@@ -54,7 +54,7 @@ export const useFingerColors = (
         // Caso 1: Se tocó una nota (correcta o incorrecta)
         // Solo iluminar el dedo que la tocó con el color del puntaje
         for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
-          next[f] = (f === lastActiveFinger) ? color : colors.idle;
+          next[f] = (f === lastActiveFinger) ? color : colors.inactive;
         }
       } else {
         // Caso 2: NO se tocó la nota (timeout/miss completo)
@@ -66,5 +66,5 @@ export const useFingerColors = (
       
       return next;
     });
-  }, [lastScore, lastActiveFinger, mode, colors.perfect, colors.good, colors.miss, colors.idle, setFingerColors]);
+  }, [lastScore, lastActiveFinger, mode, colors.perfect, colors.good, colors.miss, colors.inactive, setFingerColors]);
 };

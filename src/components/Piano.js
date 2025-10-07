@@ -3,13 +3,13 @@
 // descendentes, integra MIDI del teclado/DAW y MQTT con el guante.
 // ===============================================================
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import './Piano.css';
 import './FallingNote.css';
 import { Key } from './Key.js';
 import { Hand } from './Hand.js';
 import { FallingNote } from './FallingNote';
-import { NOTES } from '../global/constants';
+import { NOTES, COLORS } from '../global/constants';
 import { connectMQTT } from '../services/MqttClient';
 import { useNoteToFreq, usePlayNote } from '../hooks/useAudio.js';
 import { useMIDI } from '../hooks/useMIDI.js';
@@ -17,20 +17,17 @@ import { useCountdown } from '../hooks/useCountdown.js';
 import { useMQTTFeedback } from '../hooks/useMQTTFeedback.js';
 import { useFingerColors } from '../hooks/useFingerColors.js';
 import { useFingerFreqs } from '../hooks/useFingerFreqs.js';
+import { useSongLoader } from '../hooks/useSongLoader.js';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { v4 as uuidv4 } from 'uuid';
 
-
-// Paleta de colores para visual de dedos y feedback
-const colors = {
-  active: "#ffffff",
-  perfect: "#00ff00",
-  good: "#00ffff",
-  miss: "#ff0000",
-  idle: "#aaaaaa",
-  inactive: "#777777"
-};
-
+/**
+ * Componente principal del piano interactivo
+ * @component
+ * @param {Object} props.location.state - Estado de navegación
+ * @param {string} props.location.state.mode - Modo de juego: 'libre' | 'cancion'
+ * @param {string} props.location.state.song - ID de la canción
+ * @param {string} props.location.state.difficulty - Dificultad: 'facil' | 'normal' | 'dificil'
+ */
 function Piano() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -42,11 +39,11 @@ function Piano() {
   const practiceMode = difficulty;
 
   // ===============================================================
-  // Use States
+  // STATES
   // ===============================================================
   const [pressedNotes, setPressedNotes] = useState([]);
   const [fingerColors, setFingerColors] = useState({
-    thumb: colors.idle, index: colors.idle, middle: colors.idle, ring: colors.idle, pinky: colors.idle
+    thumb: COLORS.idle, index: COLORS.idle, middle: COLORS.idle, ring: COLORS.idle, pinky: COLORS.idle
   });
   const [fingerStatus, setFingerStatus] = useState({
     thumb: false, index: false, middle: false, ring: false, pinky: false
@@ -58,7 +55,6 @@ function Piano() {
     ring: 0,
     pinky: 0,
   });
-  const [fallingNotes, setFallingNotes] = useState([]);      // lista de {id, note, time}
   const [practiceStarted, setPracticeStarted] = useState(false);
   const [score, setScore] = useState(0);
   const [scoreList, setScoreList] = useState([]);
@@ -66,18 +62,15 @@ function Piano() {
   const [lastScore, setLastScore] = useState(0);
   const [lastNote, setLastNote] = useState(null);
   const [lastActiveFinger, setLastActiveFinger] = useState(null);
-
-  // Modal de instrucciones al entrar
-  const [showInstructions, setShowInstructions] = useState(true);
+  const [showInstructions, setShowInstructions] = useState(true);   // Modal de instrucciones al entrar
 
   // ===============================================================
-  // Use Refs
+  // REFS
   // ===============================================================
-  const prevFingerStatus = useRef({});
   const pianoContainerRef = useRef(null);
 
   // ===============================================================
-  // Hooks
+  // HOOKS
   // ===============================================================
 
   // Hook Audio
@@ -105,42 +98,33 @@ function Piano() {
   });
 
   // Hook Finger Colors
-  useFingerColors(mode, fingerStatus, pressedNotes, lastScore, lastActiveFinger, setFingerColors, colors);
-
-
+  useFingerColors(mode, fingerStatus, pressedNotes, lastScore, lastActiveFinger, setFingerColors, COLORS);
 
   // Hook MQTT Feedback
   useMQTTFeedback(fingerStatus, fingerColors, fingerFreqs, 70);
 
-
   // Hook Finger Frequencies 
   useFingerFreqs(mode, fingerStatus, lastNote, lastActiveFinger, noteToFreq, setFingerFreqs, setLastActiveFinger);
 
-  // ===============================================================
-  // Setup inicial: MIDI, MQTT y carga de notas
-  // ===============================================================
+  // Hook Song Loader
+  const { fallingNotes, setFallingNotes, loading, error } = useSongLoader(song, difficulty, navigate);
 
-  // Normalizamos dificultad para el nombre de archivo
-  // - 'practica' (legado) => 'normal'
-  const fileDifficulty = (() => {
-    if (difficulty === 'practica') return 'normal';
-    return difficulty;
-  })();
-
+  //================================================================
+  // EFFECTS
+  //============================================================== 
+  //Setup MQTT 
   useEffect(() => {
-    // Si faltan datos, regresamos a selección
-    if (!song || !difficulty) {
-      navigate('/practica');
-      return;
-    }
-
-    // --- MQTT (guante) ---
     connectMQTT(data => {
       setFingerStatus(data);
-      prevFingerStatus.current = data;
     });
+  }, []);
 
-    // --- Centrar el teclado en DO4 (do central) ---
+  // ===============================================================
+  // RENDER HELPERS
+  // ===============================================================
+  
+  // Centrar teclado en DO4 
+  useEffect(() => {
     setTimeout(() => {
       const container = pianoContainerRef.current;
       const do4Key = document.getElementById('do4');
@@ -149,41 +133,40 @@ function Piano() {
         container.scrollLeft = offset - container.offsetWidth / 2;
       }
     }, 300);
-
-    // --- Carga de notas desde /public/songs ---
-    // Espera archivos con convención: <song><CapDificultad>.json
-    // p.ej. odeFacil.json, odeNormal.json, odeDificil.json
-    const cap = fileDifficulty.charAt(0).toUpperCase() + fileDifficulty.slice(1);
-    const fileName = `${song}${cap}.json`;
-
-    fetch(`/songs/${fileName}`)
-      .then(res => res.json())
-      .then(data => {
-        // Aseguramos un id único por nota para la lista
-        const withIds = data.map(n => ({ ...n, id: uuidv4() }));
-        //Rellenamos el arreglo de notas descendentes
-        setFallingNotes(withIds);
-        console.log(`✅ Cargado /songs/${fileName} (${withIds.length} notas)`);
-      })
-      .catch(err => console.error('Error al cargar notas JSON:', err));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
-  // ===============================================================
-  // Render helpers
-  // ===============================================================
   // Filtra el teclado visual a octavas útiles (<= 6) para no saturar pantalla
-  const VISIBLE_NOTES = NOTES.filter(n => {
-    const match = n.match(/\d$/);
-    return match && parseInt(match[0]) <= 6;
-  });
+  const VISIBLE_NOTES = useMemo(() =>
+    NOTES.filter(n => {
+      const match = n.match(/\d$/);
+      return match && parseInt(match[0]) <= 6;
+    }),
+    []
+  );
 
   const containerHeight = 350;
 
   // ===============================================================
   // Render
   // ===============================================================
+
+  if (loading) {
+    return (
+      <div style={{ backgroundColor: '#2b2d31', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#fff', fontSize: '24px' }}>Cargando canción...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ backgroundColor: '#2b2d31', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#ff0000', fontSize: '24px' }}>Error: {error}</div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ backgroundColor: '#2b2d31', minHeight: '100vh' }}>
       {/* Barra superior con botón de regreso y puntaje */}
