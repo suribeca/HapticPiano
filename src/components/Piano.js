@@ -35,7 +35,7 @@ function Piano() {
   // `mode`: 'cancion' | 'libre'
   // `song`: id de la canción (p.ej. 'ode')
   // `difficulty`: 'facil' | 'normal' | 'dificil'  (compat: 'practica' -> 'normal')
-  const { mode = 'cancion', song = 'ode', difficulty = 'normal' } = location.state || {};
+  const { mode = 'cancion', song = 'ode', songTitle = null,difficulty = 'normal' } = location.state || {};
   const practiceMode = difficulty;
 
   // ===============================================================
@@ -233,7 +233,7 @@ function Piano() {
                       // cuando acaban todas, ir a resultados
                       setTimeout(() => {
                         navigate('/results', {
-                          state: { score, timingOffsets, scores: scoreList }
+                          state: { score, timingOffsets, scores: scoreList, songName: songTitle || song, difficulty }
                         });
                       }, 1500);
                     }

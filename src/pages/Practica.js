@@ -46,7 +46,8 @@ export default function Practica() {
     navigate("/piano", {
       state: {
         mode: "cancion",
-        song: selectedSong,
+        song: selectedSong.id,
+        songTitle: selectedSong.title,
         difficulty: selectedLevel,
       },
     });
