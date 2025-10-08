@@ -60,7 +60,7 @@ export default function Results() {
     F: 'Cada maestro fue principiante. ¡Intenta de nuevo!',
   };
 
-  // POST de resultados a tu backend local
+  // POST de resultados al backend local
   useEffect(() => {
     fetch('http://localhost:4000/api/save-results', { 
     method: 'POST',
