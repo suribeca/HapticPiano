@@ -65,8 +65,8 @@
 .box-yellow{ background:#ffd84d; }
 .box-red{ background:#ff3b3b; }
 
-/* Botón volver */
-.cta-row{ display:flex; justify-content:flex-start; margin-top:18px; }
+/* Botón volver selección*/
+.cta-row{ display:flex; justify-content:flex-start; margin-top:20px; }
 .back-btn{
   background:#19a7ff; color:#fff; font-weight:800; padding:12px 22px;
   border-radius:12px; border:none; cursor:pointer;

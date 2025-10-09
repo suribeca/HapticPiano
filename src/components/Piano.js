@@ -101,7 +101,7 @@ function Piano() {
   useFingerColors(mode, fingerStatus, pressedNotes, lastScore, lastActiveFinger, setFingerColors, COLORS);
 
   // Hook MQTT Feedback
-  useMQTTFeedback(fingerStatus, fingerColors, fingerFreqs, 70);
+  useMQTTFeedback(fingerStatus, fingerColors, fingerFreqs, 50);
 
   // Hook Finger Frequencies 
   useFingerFreqs(mode, fingerStatus, lastNote, lastActiveFinger, noteToFreq, setFingerFreqs, setLastActiveFinger);
