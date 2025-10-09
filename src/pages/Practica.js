@@ -1,4 +1,4 @@
-// Selector de práctica (sin imágenes)
+// Selector de práctica 
 // - Carrusel horizontal con tarjetas de canción (título + compositor/etiqueta)
 // - Selector de dificultad en "chips"
 // - Navega a /piano con {mode:"cancion", song, difficulty}
@@ -55,6 +55,11 @@ export default function Practica() {
 
   return (
     <div className="practice-wrap">
+
+      <div className="volver-container">
+        <button className="volver-btn" onClick={() => navigate('/')}>⬅ Volver al menú</button>
+      </div>
+
       <header className="practice-header">
         <h1 className="practice-title">Elige qué canción deseas practicar</h1>
         <p className="practice-sub">
@@ -138,7 +143,6 @@ export default function Practica() {
           Comenzar práctica
         </button>
       </div>
-
       {showError && (
         <div className="error-banner">
           ⚠️ Selecciona una <b>canción</b> y una <b>dificultad</b> para continuar.

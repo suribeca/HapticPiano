@@ -149,6 +149,8 @@ export default function Results() {
         {/* CTA */}
         <div className="cta-row">
           <button className="back-btn" onClick={() => navigate('/practica')}>Volver a seleccionar canción</button>
+        
+          <button className="volver-btn" onClick={() => navigate('/')}> ⬅ Volver al menú principal</button>
         </div>
       </section>
 

@@ -75,6 +75,38 @@
 .back-btn:hover  { background:#1297ea; box-shadow:0 8px 18px rgba(25,167,255,.25); transform:translateY(-1px); }
 .back-btn:active { transform:translateY(0); box-shadow:none; }
 
+/* CTA */
+.cta-row button + button {
+  margin-left: 620px; 
+}
+
+/* Botón para volver al Menú */
+.volver-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 40px;
+}
+
+.volver-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  background-color: #00bfff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.volver-btn:hover {
+  background-color: #009fd4;
+  transform: translateY(-2px);
+}
+
+.volver-btn:active {
+  transform: translateY(0);
+}
+
 /* Columna derecha (fija/pegada visualmente) */
 .right-col{
   width:320px; flex:0 0 320px; position:sticky; top:24px; height:fit-content;
