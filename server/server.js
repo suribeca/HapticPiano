@@ -8,11 +8,13 @@ const app = express();
 const PORT = 4000;
 
 // Middleware
-app.use(cors()); // si quieres, restringe a tu origen con { origin: 'http://localhost:5173' }
-app.use(express.json({ limit: '1mb' }));
+app.use(cors());  // Permitir CORS para todas las rutas
+app.use(express.json({ limit: '1mb' })); // Parse JSON bodies
+
+// Asegura que el archivo CSV exista y tenga encabezado
 
 // util: asegura carpeta y encabezado
-const dataDir = path.join(__dirname, 'data');
+const dataDir = path.join(__dirname, 'data'); 
 const csvPath = path.join(dataDir, 'results.csv');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 if (!fs.existsSync(csvPath)) {
@@ -22,7 +24,9 @@ if (!fs.existsSync(csvPath)) {
   );
 }
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/health', (_req, res) => res.json({ ok: true })); // Ruta de salud
+
+// Ruta para guardar resultados
 
 app.post('/api/save-results', (req, res) => {
   try {
@@ -44,21 +48,21 @@ app.post('/api/save-results', (req, res) => {
 
     // timingOffsets: a números con 1 decimal
     const offsetsStr = (Array.isArray(timingOffsets) ? timingOffsets : [])
-      .map((v) => safeNumber(v))
+      .map((v) => safeNumber(v)) 
       .map((n) => n.toFixed(1))
-      .join('|');
+      .join('|'); 
 
     // scores: a enteros (por si llegan strings)
     const scoresInt = (Array.isArray(scores) ? scores : []).map((v) => parseInt(v, 10) || 0);
-    const scoresStr = scoresInt.join('|');
+    const scoresStr = scoresInt.join('|'); 
 
-    score = safeNumber(score);
-    maxScore = safeNumber(maxScore);
+    score = safeNumber(score); 
+    maxScore = safeNumber(maxScore); 
 
     // 3) Escapar/encerrar strings con comillas para CSV
-    const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
+    const q = (s) => `"${String(s).replace(/"/g, '""')}"`; 
 
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date().toISOString(); 
     const line = [
       timestamp,
       q(songName),
