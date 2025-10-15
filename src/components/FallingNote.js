@@ -63,16 +63,16 @@ export function FallingNote({
         el.style.top = `${top}px`;
       }
 
-      const idealProgress = 0.87;
+      const idealProgress = 0.85;
       const offsetMs = (progress - idealProgress) * duration * 1000;
 
       if (!scored.current && pressedNotes.includes(noteName)) {
-        if (Math.abs(offsetMs) <= 60) {
+        if (Math.abs(offsetMs) <= 70) {
           onScore(100, offsetMs);
           scored.current = true;
           onEnd?.(id);
           return;
-        } else if (Math.abs(offsetMs) <= 120) {
+        } else if (Math.abs(offsetMs) <= 135) {
           onScore(50, offsetMs);
           scored.current = true;
           onEnd?.(id);

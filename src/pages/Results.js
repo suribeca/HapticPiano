@@ -41,10 +41,10 @@ export default function Results() {
   function getGrade(total, max, perNote) {
     if (perNote.length > 0 && perNote.every(v => v === 100)) return 'S';
     const p = max > 0 ? (total / max) * 100 : 0;
-    if (p >= 90) return 'A';
-    if (p >= 80) return 'B';
-    if (p >= 70) return 'C';
-    if (p >= 60) return 'D';
+    if (p >= 80) return 'A';
+    if (p >= 70) return 'B';
+    if (p >= 60) return 'C';
+    if (p >= 40) return 'D';
     return 'F';
   }
 
