@@ -236,3 +236,21 @@
   border: 3px solid #2563eb;
   box-shadow: 0 16px 50px rgba(0,0,0,0.4);
 }
+
+/* === Carita de puntaje (arriba-derecha) === */
+.score-face-container {
+  position: absolute;
+  top: 8px;
+  right: 300px;
+  z-index: 6;            /* por encima de notas/teclado */
+  pointer-events: none;  /* no bloquea clics/scroll */
+}
+
+.score-face {
+  display: inline-block; /* sin fondo para integrarse al UI oscuro */
+}
+
+.score-face svg {
+  transform: scale(1.5); /* aumenta 50% el tamaño */
+  transform-origin: top right; /* para que crezca hacia el centro */
+}

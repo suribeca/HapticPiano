@@ -19,6 +19,7 @@ import { useFingerColors } from '../hooks/useFingerColors.js';
 import { useFingerFreqs } from '../hooks/useFingerFreqs.js';
 import { useSongLoader } from '../hooks/useSongLoader.js';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useScoreFace } from '../hooks/useScoreFace.js';
 
 /**
  * Componente principal del piano interactivo
@@ -109,6 +110,49 @@ function Piano() {
   // Hook Song Loader
   const { fallingNotes, setFallingNotes, loading, error } = useSongLoader(song, difficulty, navigate);
 
+  // Hook Score Face
+  const face = useScoreFace(mode, lastScore, COLORS);
+
+  // === Carita de puntaje (SVG) ===
+  function ScoreFaceSVG({ mood, color }) {
+    const size = 64;
+    const cx = size / 2;
+    const cy = size / 2;
+    const eyeOffsetX = 14;
+    const eyeOffsetY = 10;
+
+    // Boca según estado (la inicial es línea horizontal: 'neutral')
+    const mouthProps = (() => {
+      if (mood === 'happyOpen') {
+        return { type: 'open' }; // dibujamos con <ellipse/>
+      }
+      if (mood === 'happy') {
+        return { type: 'path', d: `M ${cx - 16} ${cy + 8} Q ${cx} ${cy + 22} ${cx + 16} ${cy + 8}` };
+      }
+      if (mood === 'sad') {
+        return { type: 'path', d: `M ${cx - 16} ${cy + 16} Q ${cx} ${cy + 2} ${cx + 16} ${cy + 16}` };
+      }
+      // neutral (línea horizontal)
+      return { type: 'path', d: `M ${cx - 12} ${cy + 12} L ${cx + 12} ${cy + 12}` };
+    })();
+
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label="score-face">
+        {/* Contorno de cara */}
+        <circle cx={cx} cy={cy} r={30} fill="none" stroke={color} strokeWidth="3" />
+        {/* Ojos */}
+        <circle cx={cx - eyeOffsetX} cy={cy - eyeOffsetY} r={3} fill={color} />
+        <circle cx={cx + eyeOffsetX} cy={cy - eyeOffsetY} r={3} fill={color} />
+        {/* Boca */}
+        {mouthProps.type === 'open' ? (
+          <ellipse cx={cx} cy={cy + 14} rx="10" ry="7" fill={color} />
+        ) : (
+          <path d={mouthProps.d} stroke={color} strokeWidth="3" fill="none" strokeLinecap="round" />
+        )}
+      </svg>
+    );
+  }
+
   //================================================================
   // EFFECTS
   //============================================================== 
@@ -183,6 +227,15 @@ function Piano() {
 
       {/* Contenedor principal del piano */}
       <div className="piano-container" ref={pianoContainerRef}>
+
+        {/* === Carita de feedback (solo en modo práctica/canción) === */}
+        {mode === 'cancion' && (
+          <div className="score-face-container">
+            <div className="score-face">
+              <ScoreFaceSVG mood={face.mood} color={face.color} />
+            </div>
+          </div>
+        )}
 
         {/* Mano (solo en modo libre/demo) */}
         {mode === 'libre' && (
