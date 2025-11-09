@@ -79,7 +79,7 @@ app.post('/api/save-results', (req, res) => {
         console.error('Error guardando resultados:', err);
         return res.status(500).json({ ok: false, error: 'FS_APPEND_ERROR' });
       }
-      console.log('✅ Resultados guardados');
+      console.log('Resultados guardados');
       res.status(200).json({ ok: true });
     });
   } catch (e) {
@@ -89,5 +89,5 @@ app.post('/api/save-results', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });

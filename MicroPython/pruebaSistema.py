@@ -81,7 +81,7 @@ while True:
         if active:
             r, g, b = finger_colors[i]
             set_led_color(leds[i], r, g, b)
-            motors[motor_index].duty_u16(40000)  # intensidad fija
+            motors[motor_index].duty_u16(40000) 
         else:
             turn_off_led(leds[i])
             motors[motor_index].duty_u16(0)
