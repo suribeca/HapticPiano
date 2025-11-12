@@ -13,8 +13,14 @@ AP_SSID = "HapticGlove"
 AP_PASSWORD = "12345678"
 AP_IP = "192.168.4.1"
 
+WIFI_SSID = "HapticGlove"
+WIFI_PASSWORD = "12345678"
+#AP_IP = "192.168.4.1"
+
+
  # -------- MQTT ---------------
-BROKER_IP = '192.168.4.16'  # IP de tu PC cuando se conecte al AP
+#BROKER_IP = '192.168.4.16'  # IP de tu PC cuando se conecte al AP
+BROKER_IP = '192.168.137.1'
 BROKER_PORT = 1883
 
 TOPIC_ESTADO   = b'picow/fingers'   # Pico -> Web 
@@ -334,6 +340,46 @@ def wifi_ap_mode():
     
     return ap
 
+
+# =============================
+# Configuración WiFi Station (Cliente)
+# =============================
+
+def wifi_sta_mode():
+    import network, time
+
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    wlan.disconnect()  # limpiar estado previo
+    time.sleep(0.5)
+
+    print(f"[WIFI] Conectando a red '{WIFI_SSID}' ...")
+    wlan.connect(WIFI_SSID, WIFI_PASSWORD)
+
+    start = time.time()
+    while not wlan.isconnected():
+        status = wlan.status()
+        if status < 0 or status >= 3:  # error o conectado
+            break
+        print(f"  Estado WiFi: {status}")
+        time.sleep(0.5)
+        if time.time() - start > 20:
+            raise Exception("⏱ Tiempo de espera agotado al conectar WiFi")
+
+    if wlan.isconnected():
+        ip = wlan.ifconfig()
+        print("✅ WiFi conectado exitosamente")
+        print(f"   IP Pico: {ip[0]}")
+        print(f"   Máscara: {ip[1]}")
+        print(f"   Gateway: {ip[2]}")
+    else:
+        print("❌ Fallo en la conexión WiFi")
+        print(f"Estado final: {wlan.status()} (esperado: 3)")
+        raise Exception("No se pudo conectar al WiFi")
+
+    return wlan
+
+
 # ================================================================
 # PATRÓN DE INICIO
 # ================================================================
@@ -365,16 +411,17 @@ def main():
     # --- Inicialización --- 
     print("=== INICIANDO HAPTIC GLOVE ===")
     init_motors()
-    startup_pattern()
+    #startup_pattern()
 
-    wifi_ap_mode()
+    #wifi_ap_mode()
+    wifi_sta_mode()
     client = mqtt_connect()
 
     last_pressed = [False]*5
     
     # Configuración de timing optimizada para latencia
     LOOP_DT = 0.001   # 10ms de ciclo (100 Hz)
-    PUB_MS = 40      # Publicar cada 50ms (20 Hz) - Balance óptimo
+    PUB_MS = 50      # Publicar cada 50ms (20 Hz) - Balance óptimo
     
     t_pub = time.ticks_ms()
     t_stats = time.ticks_ms()

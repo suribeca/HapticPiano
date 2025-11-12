@@ -1,111 +1,172 @@
 // src/services/MqttClient.js
-// Cliente MQTT para front-end (React) usando MQTT.js y WebSockets contra Mosquitto.
-// - Se conecta a un broker por WS (puerto 9001 típico en Mosquitto).
-// - Se suscribe a 'picow/fingers' (estados que publica la Pico).
-// - Publica a 'web/pressed' (feedback de color/frecuencia para la Pico).
-// - Expone helpers: connectMQTT, publishFeedback, disconnectMQTT.
+// Cliente MQTT optimizado para comunicación de baja latencia entre React y Pico W
+// 
+// Arquitectura:
+// - Conexión WebSocket al broker Mosquitto (puerto 9001)
+// - Suscripción: 'picow/fingers' - Estados de sensores desde Pico W
+// - Publicación: 'web/pressed' - Feedback de actuadores hacia Pico W
+//
+
 
 import mqtt from "mqtt";
 
-// Guardamos una referencia única al cliente para evitar conexiones duplicadas.
 let client = null;
 
 /**
- * Conecta al broker MQTT (WebSockets) y registra un callback para mensajes entrantes.
- * @param {Function} onMessage - callback que recibe los datos del topic 'picow/fingers'
- *                               (objeto con {thumb:boolean, index:boolean, ...})
+ * Establece conexión con el broker MQTT y configura callback para mensajes entrantes
+ * 
+ * @param {Function} onMessage - Callback ejecutado al recibir datos de 'picow/fingers'
+ *                               Recibe objeto: {thumb: boolean, index: boolean, ...}
+ * @returns {Object} Instancia del cliente MQTT
+ * 
+ * Configuración optimizada para latencia:
+ * - clean: true - Sesión limpia sin estado previo
+ * - queueQoSZero: false - No bufferizar mensajes QoS 0 offline
+ * - reconnectPeriod: 500ms - Reconexión rápida
  */
 export function connectMQTT(onMessage) {
-  // Si ya existe un cliente y está conectado, lo reutilizamos.
-  if (client?.connected) return client;
+  if (client?.connected) {
+    console.log("[MQTT] Cliente ya conectado, reutilizando conexión");
+    return client;
+  }
 
-  // URL del broker en WebSockets: la traemos de .env (REACT_APP_MQTT_URL) o usamos localhost por defecto.
-  // Ejemplo de .env: REACT_APP_MQTT_URL=ws://192.168.1.50:9001
-  const url = process.env.REACT_APP_MQTT_URL || "ws://localhost:9001";
+  const url = process.env.REACT_APP_MQTT_URL || "ws://192.168.4.1:9001";
+  console.log("[MQTT] Iniciando conexión a:", url);
 
-  // Creamos la conexión con MQTT.js. Como es WS, NO hacen falta credenciales ni TLS en LAN.
   client = mqtt.connect(url, {
-    protocol: "ws",      // Forzamos protocolo WebSockets (imprescindible en navegador).
-    clean: true,         // Sesión limpia: no reanuda suscripciones pendientes del lado del broker.
-    connectTimeout: 4000,// Tiempo máximo para establecer conexión (ms).
-    reconnectPeriod: 1000// Si se cae, intenta reconectar cada 1s.
-    // Opcionales útiles:
-    // queueQoSZero: false, // NO bufferizar mensajes QoS0 si estamos desconectados (latencia > fiabilidad).
+    protocol: "ws",
+    clean: true,
+    connectTimeout: 4000,
+    reconnectPeriod: 500,      // Reducido de 1000ms a 500ms
+    queueQoSZero: false,       // No bufferizar QoS 0 - prioriza latencia
+    keepalive: 30              // Reducido de 60s a 30s para detectar desconexiones más rápido
   });
 
-  // Evento: conexión establecida con el broker.
   client.on("connect", () => {
-    console.log("✅ Conectado a Mosquitto (WS):", url);
-
-    // Nos suscribimos al topic donde la Pico publica el estado de sus sensores (dedos).
-    client.subscribe("picow/fingers", (err) => {
-      if (err) console.error("Error al suscribirse:", err);
-      // Nota: si quisieras más topics, se pueden agregar aquí.
+    console.log("[MQTT] Conectado al broker");
+    
+    // Suscripción con QoS 0 para máxima velocidad
+    client.subscribe("picow/fingers", { qos: 0 }, (err) => {
+      if (err) {
+        console.error("[MQTT] Error en suscripción:", err);
+      } else {
+        console.log("[MQTT] Suscrito a picow/fingers");
+      }
     });
   });
 
-  // Evento: recepción de mensajes. Llega para TODOS los topics suscritos.
+  // Procesamiento de mensajes - ejecuta callback inmediatamente sin delays
   client.on("message", (topic, payload) => {
-    // Solo procesamos el topic que nos interesa en este cliente.
     if (topic !== "picow/fingers") return;
 
     try {
-      // La Pico publica JSON con booleanos por dedo, lo parseamos.
-      // Ej: {"thumb":true,"index":false,"middle":true,"ring":false,"pinky":false}
       const data = JSON.parse(payload.toString());
-
-      // Disparamos el callback recibido desde Piano.js (si existe).
-      onMessage && onMessage(data);
-    } catch (e) {
-      console.error("Error al parsear MQTT:", e);
+      
+      // Ejecutar callback sin setTimeout ni debouncing
+      // para procesamiento inmediato
+      if (onMessage) {
+        onMessage(data);
+      }
+    } catch (error) {
+      console.error("[MQTT] Error parseando mensaje:", error);
     }
   });
 
-  // Evento: errores de red o del broker (útil para debug).
-  client.on("error", (err) => console.error("MQTT error:", err));
+  client.on("error", (error) => {
+    console.error("[MQTT] Error de conexión:", error);
+  });
 
-  // Checar eventos: 
-  // client.on("reconnect", () => console.log("Reconectando a MQTT..."));
-  // client.on("close", () => console.log("Conexión MQTT cerrada"));
-  // client.on("offline", () => console.log("MQTT offline"));
+  client.on("reconnect", () => {
+    console.log("[MQTT] Intentando reconexión...");
+  });
+
+  client.on("close", () => {
+    console.log("[MQTT] Conexión cerrada");
+  });
+
+  client.on("offline", () => {
+    console.warn("[MQTT] Cliente offline");
+  });
 
   return client;
 }
 
 /**
- * Publica feedback para la Pico en el topic 'web/pressed'.
- * @param {Object} fingerStates - Mapa por dedo con { pressed, color, freq }.
- *   Ej:
+ * Publica estado de actuadores hacia la Pico W
+ * 
+ * @param {Object} fingerStates - Estado por dedo con propiedades:
  *   {
- *     "thumb":  { pressed: true,  color:"#00ff00", freq:50000 },
- *     "index":  { pressed: false, color:"#cccccc", freq:0 },
- *     "middle": { pressed: true,  color:"#00ff00", freq:52000 },
+ *     "thumb":  { pressed: boolean, color: string, freq: number },
+ *     "index":  { pressed: boolean, color: string, freq: number },
  *     ...
  *   }
- * - 'pressed' lo usa el front para decidir color/intensidad; en la Pico la DECISIÓN final de encendido depende del sensor físico (baja latencia).
- * - 'color' es #RRGGBB (la Pico lo convierte a 16 bits por canal).
- * - 'freq' mapea a duty_u16 (0..65535) del PWM del motor (intensidad háptica).
+ * 
+ * Propiedades:
+ * - pressed: Estado del actuador (true/false)
+ * - color: Color LED en formato hexadecimal #RRGGBB
+ * - freq: Intensidad PWM del motor (0-65535)
+ * 
+ * Publicación con QoS 0 (at most once):
+ * - Sin confirmación de entrega
+ * - Mínima latencia
+ * - Apropiado para datos de control en tiempo real donde
+ *   el siguiente mensaje reemplaza al anterior
  */
 export function publishFeedback(fingerStates) {
-  // Si la conexión no está lista, evitamos publicar (y avisamos).
   if (!client || !client.connected) {
-    console.warn("MQTT no conectado");
+    console.warn("[MQTT] No conectado - descartando mensaje");
     return;
   }
 
-  // Publicamos con QoS 0 (rápido, sin confirmación). Perfecto para feedback en tiempo real.
-  client.publish("web/pressed", JSON.stringify(fingerStates), { qos: 0 });
+  try {
+    const payload = JSON.stringify(fingerStates);
+    
+    // QoS 0: Máxima velocidad, sin garantías de entrega
+    // Apropiado para feedback continuo donde mensajes posteriores
+    // actualizan el estado completo
+    client.publish("web/pressed", payload, { qos: 0 }, (error) => {
+      if (error) {
+        console.error("[MQTT] Error publicando:", error);
+      }
+    });
+  } catch (error) {
+    console.error("[MQTT] Error serializando payload:", error);
+  }
 }
 
 /**
- * Cierra la conexión MQTT (se recomienda al desmontar el componente o salir de la vista).
+ * Cierra la conexión MQTT de forma limpia
+ * Debe llamarse al desmontar el componente o cambiar de vista
+ * 
+ * @param {boolean} force - Si true, cierra inmediatamente sin esperar ACKs
  */
-export function disconnectMQTT() {
+export function disconnectMQTT(force = true) {
   if (client) {
     try {
-      // end(true) corta inmediatamente sin esperar ACKs; ideal para cerrar al navegar.
-      client.end(true);
-    } catch {}
-    client = null;
+      console.log("[MQTT] Cerrando conexión...");
+      client.end(force);
+      client = null;
+      console.log("[MQTT] Desconectado");
+    } catch (error) {
+      console.error("[MQTT] Error al desconectar:", error);
+      client = null;
+    }
   }
+}
+
+/**
+ * Verifica el estado de la conexión MQTT
+ * @returns {boolean} true si está conectado, false en caso contrario
+ */
+export function isConnected() {
+  return client?.connected || false;
+}
+
+/**
+ * Obtiene la instancia actual del cliente MQTT
+ * Útil para operaciones avanzadas o debugging
+ * @returns {Object|null} Instancia del cliente o null
+ */
+export function getClient() {
+  return client;
 }

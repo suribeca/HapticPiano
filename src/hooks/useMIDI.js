@@ -36,20 +36,20 @@ export const useMIDI = (onNoteOn, onNoteOff) => {
 
     // Reasigna a todas las entradas disponibles
     const inputs = Array.from(midiAccess.inputs.values());
-    console.log('Entradas MIDI detectadas:', inputs.map(i => i.name));
+    //console.log('Entradas MIDI detectadas:', inputs.map(i => i.name));
 
     inputs.forEach((input) => {
       try {
         input.onmidimessage = handleMIDIMessage;
-        console.log(`✅ Escuchando: ${input.name} (id: ${input.id})`);
+        //console.log(`✅ Escuchando: ${input.name} (id: ${input.id})`);
       } catch (e) {
-        console.warn(`No se pudo adjuntar a ${input.name}`, e);
+        //console.warn(`No se pudo adjuntar a ${input.name}`, e);
       }
     });
   }, [handleMIDIMessage]);
 
   const onMIDISuccess = useCallback((midiAccess) => {
-    console.log('MIDI conectado exitosamente');
+    //console.log('MIDI conectado exitosamente');
     midiAccessRef.value = midiAccess;
 
     attachAllInputs(midiAccess);
@@ -57,7 +57,7 @@ export const useMIDI = (onNoteOn, onNoteOff) => {
     // Maneja hot-plug / cambios de estado (conectar/desconectar)
     midiAccess.onstatechange = (event) => {
       const port = event.port;
-      console.log(`ℹ️ Estado cambiado: [${port.type}] ${port.name} → ${port.state}/${port.connection}`);
+      //console.log(`ℹ️ Estado cambiado: [${port.type}] ${port.name} → ${port.state}/${port.connection}`);
       attachAllInputs(midiAccess);
     };
   }, [attachAllInputs]);
