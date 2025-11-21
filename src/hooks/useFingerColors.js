@@ -1,70 +1,108 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from "react";
+import { profiler } from "../utils/profiler";
 
-/**
- * Hook para manejar los colores de los dedos según el modo y estado
- * @param {string} mode - Modo de juego: 'libre' | 'cancion'
- * @param {Object} fingerStatus - Estado actual de los dedos
- * @param {Array} pressedNotes - Notas MIDI actualmente presionadas
- * @param {number} lastScore - Último puntaje obtenido (0, 50, 100)
- * @param {string|null} lastActiveFinger - Último dedo que se activó ('thumb', 'index', etc.)
- * @param {Function} setFingerColors - Setter del estado fingerColors
- * @param {Object} colors - Paleta de colores
- */
 export const useFingerColors = (
-  mode, 
-  fingerStatus, 
-  pressedNotes, 
-  lastScore, 
+  mode,
+  fingerStatus,
+  pressedNotes,
+  lastScore,
   lastActiveFinger,
-  setFingerColors, 
+  setFingerColors,
   colors
 ) => {
-  
-  // Modo Libre: dedos activos solo si sensor Y hay nota MIDI presionada
+  // Paso 3: memoizar colores
+  const stableColors = useRef(colors);
+
+  // Si el objeto colors realmente cambia (raro), actualizar ref
+  if (stableColors.current !== colors) {
+    stableColors.current = colors;
+  }
+
+  const prevRef = useRef(null);
+  const prevStatusRef = useRef({});
+  const prevNotesRef = useRef([]);
+
+  const c = stableColors.current; // alias para menos ruido
+
+  // ----------------------------
+  // MODO LIBRE
+  // ----------------------------
   useEffect(() => {
-    if (mode !== 'libre') return;
-    
-    setFingerColors(prev => {
-      const next = { ...prev };
-      const hasNotesPressed = pressedNotes && pressedNotes.length > 0;
-      
+    profiler.step("react-latency", "computed color", { requireActive: true });
+
+    if (mode !== "libre") return;
+
+    const statusChanged =
+      JSON.stringify(prevStatusRef.current) !== JSON.stringify(fingerStatus);
+    const notesChanged =
+      pressedNotes.length !== prevNotesRef.current.length;
+
+    if (!statusChanged && !notesChanged) {
+      return;
+    }
+
+    prevStatusRef.current = fingerStatus;
+    prevNotesRef.current = pressedNotes;
+
+    const hasNotesPressed = pressedNotes && pressedNotes.length > 0;
+    const next = {};
+    let changed = false;
+
+    for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
+      const isActive = fingerStatus[f] && hasNotesPressed;
+      const newColor = isActive ? c.active : c.inactive;
+
+      next[f] = newColor;
+
+      if (!prevRef.current || prevRef.current[f] !== newColor) {
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      prevRef.current = next;
+      setFingerColors(next);
+    }
+  }, [mode, fingerStatus, pressedNotes]);
+
+  // ----------------------------
+  // MODO CANCIÓN
+  // ----------------------------
+  useEffect(() => {
+    if (mode !== "cancion" || lastScore == null) return;
+
+    profiler.step("react-latency", "computed color (song)");
+
+    const next = {};
+    let changed = false;
+
+    let color =
+      lastScore === 100
+        ? c.perfect
+        : lastScore === 50
+        ? c.good
+        : c.miss;
+
+    if (lastActiveFinger) {
       for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
-        // Solo activo si el sensor está presionado Y hay notas MIDI activas
-        const isActive = (fingerStatus && fingerStatus[f]) && hasNotesPressed;
-        next[f] = isActive ? colors.active : colors.inactive;
-      }
-      return next;
-    });
-  }, [fingerStatus, pressedNotes, mode, colors.active, colors.inactive, setFingerColors]);
-
-  // Modo Canción: colores según el puntaje obtenido
-  useEffect(() => {
-    if (mode !== 'cancion' || lastScore === null) return;
-
-    let color;
-    if (lastScore === 100) color = colors.perfect;
-    else if (lastScore === 50) color = colors.good;
-    else if (lastScore === 0) color = colors.miss;
-    else return; // No hacer nada si el score no es válido
-
-    setFingerColors(prev => {
-      const next = { ...prev };
-      
-      if (lastActiveFinger) {
-        // Caso 1: Se tocó una nota (correcta o incorrecta)
-        // Solo iluminar el dedo que la tocó con el color del puntaje
-        for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
-          next[f] = (f === lastActiveFinger) ? color : colors.inactive;
-        }
-      } else {
-        // Caso 2: NO se tocó la nota (timeout/miss completo)
-        // Toda la mano en ROJO
-        for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
-          next[f] = colors.miss;
+        const newColor = f === lastActiveFinger ? color : c.inactive;
+        next[f] = newColor;
+        if (!prevRef.current || prevRef.current[f] !== newColor) {
+          changed = true;
         }
       }
-      
-      return next;
-    });
-  }, [lastScore, lastActiveFinger, mode, colors.perfect, colors.good, colors.miss, colors.inactive, setFingerColors]);
+    } else {
+      for (const f of ["thumb", "index", "middle", "ring", "pinky"]) {
+        next[f] = c.miss;
+        if (!prevRef.current || prevRef.current[f] !== c.miss) {
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      prevRef.current = next;
+      setFingerColors(next);
+    }
+  }, [lastScore, lastActiveFinger, mode]);
 };

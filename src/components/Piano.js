@@ -2,20 +2,16 @@
 // Componente principal del piano: renderiza teclado, mano, notas
 // descendentes, integra MIDI del teclado/DAW y MQTT con el guante.
 // 
-// OPTIMIZACIÓN DE LATENCIA:
-// - Usa refs en lugar de state para fingerStatus para evitar re-renders
-// - Procesamiento directo de mensajes MQTT sin causar actualizaciones
-// - Reducción de latencia de ~350ms a ~50-80ms
 // ===============================================================
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import './Piano.css';
 import './FallingNote.css';
 import { Key } from './Key.js';
 import { Hand } from './Hand.js';
 import { FallingNote } from './FallingNote';
 import { NOTES, COLORS } from '../global/constants';
-import { connectMQTT } from '../services/MqttClient';
+import { connectMQTT, disconnectMQTT } from '../services/MqttClient';
 import { useNoteToFreq, usePlayNote } from '../hooks/useAudio.js';
 import { useMIDI } from '../hooks/useMIDI.js';
 import { useCountdown } from '../hooks/useCountdown.js';
@@ -25,39 +21,38 @@ import { useFingerFreqs } from '../hooks/useFingerFreqs.js';
 import { useSongLoader } from '../hooks/useSongLoader.js';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useScoreFace } from '../hooks/useScoreFace.js';
+
 import { useLatencyMeasurement } from '../hooks/useLatencyMeasurement.js';
+import { useFingerColorsTiming } from '../hooks/useFingerColorsTiming.js';
 
 
 /**
  * Componente principal del piano interactivo
  * @component
- * @param {Object} props.location.state - Estado de navegación
- * @param {string} props.location.state.mode - Modo de juego: 'libre' | 'cancion'
- * @param {string} props.location.state.song - ID de la canción
- * @param {string} props.location.state.difficulty - Dificultad: 'facil' | 'normal' | 'dificil'
  */
 function Piano() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Extracción de parámetros de navegación
-  // `mode`: 'cancion' | 'libre'
-  // `song`: id de la canción (p.ej. 'ode')
-  // `difficulty`: 'facil' | 'normal' | 'dificil'  (compat: 'practica' -> 'normal')
   const { mode = 'cancion', song = 'ode', songTitle = null, difficulty = 'normal' } = location.state || {};
   const practiceMode = difficulty;
+  const colors = useMemo(() => COLORS, []);
 
   // ===============================================================
   // STATES
   // ===============================================================
   const [pressedNotes, setPressedNotes] = useState([]);
   const [fingerColors, setFingerColors] = useState({
-    thumb: COLORS.idle, index: COLORS.idle, middle: COLORS.idle, ring: COLORS.idle, pinky: COLORS.idle
+    thumb: colors.idle, index: colors.idle, middle: colors.idle, ring: colors.idle, pinky: colors.idle
   });
+  const fingerStatusRef = useRef({
+    thumb: false, index: false, middle: false, ring: false, pinky: false
+  });
+
   const [fingerStatusDisplay, setFingerStatusDisplay] = useState({
     thumb: false, index: false, middle: false, ring: false, pinky: false
   });
-  
+
   const [fingerFreqs, setFingerFreqs] = useState({
     thumb: 0,
     index: 0,
@@ -72,64 +67,55 @@ function Piano() {
   const [lastScore, setLastScore] = useState(0);
   const [lastNote, setLastNote] = useState(null);
   const [lastActiveFinger, setLastActiveFinger] = useState(null);
-  const [showInstructions, setShowInstructions] = useState(true);   // Modal de instrucciones al entrar
+  const [showInstructions, setShowInstructions] = useState(true);
 
   // ===============================================================
   // REFS
   // ===============================================================
   const pianoContainerRef = useRef(null);
 
-  const fingerStatusRef = useRef({
-    thumb: false, index: false, middle: false, ring: false, pinky: false
-  });
-  
   // ===============================================================
   // HOOKS
   // ===============================================================
-
-  // Hook Audio
   const noteToFreq = useNoteToFreq(NOTES);
   const { playNote, audioRefs } = usePlayNote();
 
-  // Hook MIDI
-  useMIDI(
-    // onNoteOn callback
-    (noteName) => {
-      setPressedNotes(prev => [...prev, noteName]);
-      playNote(noteName);
-      setLastNote(noteName);
-    },
-    // onNoteOff callback
-    (noteName) => {
-      setPressedNotes(prev => prev.filter(n => n !== noteName));
-      setLastNote(null);
-    }
-  );
+  // --- memoized MIDI callbacks: IMPORTANT to avoid multiple attachments ---
+  const handleNoteOn = useCallback((noteName) => {
+    // start profiler here in useMIDI (already implemented there)
+    setPressedNotes(prev => {
+      // avoid duplicates if same note is already present
+      if (prev.includes(noteName)) return prev;
+      return [...prev, noteName];
+    });
+    // play note (assume playNote is stable from hook)
+    try { playNote(noteName); } catch (e) { /* noop */ }
+    setLastNote(noteName);
+  }, [playNote, setLastNote, setPressedNotes]);
 
-  // Hook Countdown
+  const handleNoteOff = useCallback((noteName) => {
+    setPressedNotes(prev => prev.filter(n => n !== noteName));
+    setLastNote(null);
+  }, [setPressedNotes, setLastNote]);
+
+  useMIDI(handleNoteOn, handleNoteOff);
+
   const { showCountdown, countdown, startCountdown } = useCountdown(3, () => {
     setPracticeStarted(true);
   });
 
-  // Hook Finger Colors
-  // Pasamos .current del ref para evitar re-renders
-  useFingerColors(mode, fingerStatusRef.current, pressedNotes, lastScore, lastActiveFinger, setFingerColors, COLORS);
+  // useFingerColors (passes .current for status to avoid re-renders)
+  useFingerColors(mode, fingerStatusRef.current, pressedNotes, lastScore, lastActiveFinger, setFingerColors, colors);
 
-  // Hook MQTT Feedback
-  // Interval de 50ms para balance entre latencia y throughput
   useMQTTFeedback(fingerStatusRef.current, fingerColors, fingerFreqs, 60);
 
-  // Hook Finger Frequencies 
   useFingerFreqs(mode, fingerStatusRef.current, lastNote, lastActiveFinger, noteToFreq, setFingerFreqs, setLastActiveFinger);
 
-  // Hook Song Loader
   const { fallingNotes, setFallingNotes, loading, error } = useSongLoader(song, difficulty, navigate);
 
-  // Hook Score Face
-  const face = useScoreFace(mode, lastScore, COLORS);
-
+  const face = useScoreFace(mode, lastScore, colors);
   // Hook Latency Measurement
-  useLatencyMeasurement(pressedNotes, fingerStatusRef);
+  //useLatencyMeasurement(pressedNotes, fingerStatusRef);
 
   // ===============================================================
   // COMPONENTE: Carita de puntaje (SVG)
@@ -176,36 +162,55 @@ function Piano() {
   //================================================================
   // EFFECTS
   //================================================================ 
-  
-  // Setup MQTT - OPTIMIZADO PARA BAJA LATENCIA
-  // Actualiza ref directamente sin causar re-renders
-  useEffect(() => {
-    const handleMqttMessage = (data) => {
-      // CRÍTICO: Actualizar ref sin causar re-render
-      // Esto reduce latencia significativamente
-      fingerStatusRef.current = {
-        thumb: data.thumb || false,
-        index: data.index || false,
-        middle: data.middle || false,
-        ring: data.ring || false,
-        pinky: data.pinky || false
-      };
-      
-      // Actualizar display solo si necesitas visualización
-      // (opcional - comentar para máxima performance)
-      setFingerStatusDisplay(fingerStatusRef.current);
+
+  const handleMqttMessage = useCallback((data) => {
+    const now = Date.now();
+    const picoTimestamp = data.timestamp;
+    if (picoTimestamp) {
+      const networkLatency = now - picoTimestamp;
+      console.log(`[MQTT] Latencia red (Pico→React): ${networkLatency}ms`);
+    }
+
+    const newStatus = {
+      thumb: !!data.thumb,
+      index: !!data.index,
+      middle: !!data.middle,
+      ring: !!data.ring,
+      pinky: !!data.pinky
     };
-    
-    connectMQTT(handleMqttMessage);
+
+    // Actualización directa del ref (rápido, sin re-render)
+    fingerStatusRef.current = newStatus;
+
+    // Actualizar estado de display SOLO si cambió (reduce renders)
+    setFingerStatusDisplay(prev => {
+      const changed = (
+        prev.thumb !== newStatus.thumb ||
+        prev.index !== newStatus.index ||
+        prev.middle !== newStatus.middle ||
+        prev.ring !== newStatus.ring ||
+        prev.pinky !== newStatus.pinky
+      );
+      return changed ? newStatus : prev;
+    });
   }, []);
+
+  useEffect(() => {
+    const c = connectMQTT(handleMqttMessage);
+
+    return () => {
+      // cleanup: desconectar cliente MQTT cuando el componente se desmonte
+      try { disconnectMQTT(true); } catch (e) { /* noop */ }
+    };
+  }, [handleMqttMessage]);
 
   // ===============================================================
   // RENDER HELPERS
   // ===============================================================
-  
+
   // Centrar teclado en DO4 al montar componente
   useEffect(() => {
-    setTimeout(() => {
+    const t = setTimeout(() => {
       const container = pianoContainerRef.current;
       const do4Key = document.getElementById('do4');
       if (container && do4Key) {
@@ -213,9 +218,9 @@ function Piano() {
         container.scrollLeft = offset - container.offsetWidth / 2;
       }
     }, 300);
+    return () => clearTimeout(t);
   }, []);
 
-  // Filtra el teclado visual a octavas útiles (<= 6) para no saturar pantalla
   const VISIBLE_NOTES = useMemo(() =>
     NOTES.filter(n => {
       const match = n.match(/\d$/);
@@ -235,7 +240,7 @@ function Piano() {
   // ===============================================================
   // RENDER
   // ===============================================================
-
+  console.log("RENDER PIANO");
   // Estado de carga
   if (loading) {
     return (

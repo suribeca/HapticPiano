@@ -373,7 +373,7 @@ def main():
     last_pressed = [False]*5
     
     # Configuración de timing optimizada para latencia
-    LOOP_DT = 0.001   # 10ms de ciclo (100 Hz)
+    LOOP_DT = 0   # 10ms de ciclo (100 Hz)
     PUB_MS = 40      # Publicar cada 50ms (20 Hz) - Balance óptimo
     
     t_pub = time.ticks_ms()

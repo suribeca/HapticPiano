@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-
+import { profiler } from "../utils/profiler";
 /**
  * Hook para manejar las frecuencias de los dedos según el estado y la última nota
  * @param {string} mode - Modo de juego: 'libre' | 'cancion'
@@ -22,6 +22,8 @@ export const useFingerFreqs = (
 
   // Cuando cambien los dedos o la última nota, recalculamos frecuencias
   useEffect(() => {
+
+    profiler.step("react-latency", "computed freq Init");
     // Si no hay nota, todas las frecuencias a 0
     if (!lastNote) {
       setFingerFreqs({

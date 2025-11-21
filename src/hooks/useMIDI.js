@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { MIDI_TO_NOTE } from '../global/constants';
+import { profiler } from "../utils/profiler";
 
 /**
  * Hook para conexión y eventos MIDI (soporta cualquier canal y hot-plug)
@@ -10,6 +11,8 @@ export const useMIDI = (onNoteOn, onNoteOff) => {
   const midiAccessRef = useRef(null);
 
   const handleMIDIMessage = useCallback(({ data }) => {
+
+
     // data = [status, noteNumber, velocity]
     const [status, noteNumber, velocity = 0] = data || [];
 
@@ -24,29 +27,24 @@ export const useMIDI = (onNoteOn, onNoteOff) => {
       return;
     }
 
-    if (isNoteOn && onNoteOn) onNoteOn(noteName);
+    if (isNoteOn && onNoteOn) {
+      profiler.start("react-latency");
+      onNoteOn(noteName);
+    }
     if (isNoteOff && onNoteOff) onNoteOff(noteName);
   }, [onNoteOn, onNoteOff]);
 
-  const attachAllInputs = useCallback((midiAccess) => {
-    // Limpia handlers previos para evitar duplicados
-    midiAccess.inputs.forEach((input) => {
-      input.onmidimessage = null;
-    });
+  const handlerRef = useRef(null);
+  handlerRef.current = handleMIDIMessage;
 
-    // Reasigna a todas las entradas disponibles
+  const attachAllInputs = useCallback((midiAccess) => {
     const inputs = Array.from(midiAccess.inputs.values());
-    //console.log('Entradas MIDI detectadas:', inputs.map(i => i.name));
 
     inputs.forEach((input) => {
-      try {
-        input.onmidimessage = handleMIDIMessage;
-        //console.log(`✅ Escuchando: ${input.name} (id: ${input.id})`);
-      } catch (e) {
-        //console.warn(`No se pudo adjuntar a ${input.name}`, e);
-      }
+      input.onmidimessage = (msg) => handlerRef.current(msg);
     });
-  }, [handleMIDIMessage]);
+  }, []);
+
 
   const onMIDISuccess = useCallback((midiAccess) => {
     //console.log('MIDI conectado exitosamente');

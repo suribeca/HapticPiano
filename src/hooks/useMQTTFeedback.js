@@ -1,13 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { publishFeedback } from '../services/MqttClient';
+import { profiler } from "../utils/profiler";
 
 /**
  * Hook optimizado para latencia mínima en publicación MQTT
- * 
- * ESTRATEGIA CRÍTICA:
- * - Publica INMEDIATAMENTE cuando detecta cambios (no espera interval)
- * - Interval solo como fallback para mantener estado
- * - Reduce latencia de ~400ms a ~50-100ms
  */
 export const useMQTTFeedback = (
   fingerStatus, 
@@ -54,7 +50,9 @@ export const useMQTTFeedback = (
       publishFeedback(hasActive ? feedback : { __empty: true });
       
       // Log para verificar timing
-      console.log(`[PUBLISH] Enviado inmediatamente en ${performance.now().toFixed(2)}ms`);
+      //console.log(`[PUBLISH] Enviado inmediatamente en ${performance.now().toFixed(2)}ms`);
+      profiler.end("react-latency", "published feedback");
+    
     }
   }, [fingerColors, fingerFreqs]); // Disparar cuando cambien colors o freqs
 
