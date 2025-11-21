@@ -51,12 +51,77 @@ motors = [
 # ----------- Filtros de entrada -----------
 # Histeresis y Debounce: Control de sensibilidad
 
-THRESH_ON, THRESH_OFF  = 12000, 8000
+THRESH_ON, THRESH_OFF  = 20000, 1000
 analog_state = [False]*3  # estado latched por canal analógico
 digital_state = [False]*2  # estado estable de digitales
 last_change_ms = [0]*2  # para los 2 digitales (índices 3 y 4)
 DEBOUNCE_MS = 20
 
+
+# ================================
+# MEDICIÓN DE LATENCIA
+# ================================
+
+# Diccionario para guardar timestamps de cuando se envió cada finger press
+finger_timestamps = {}
+
+# Estadísticas de latencia
+latency_stats = {
+    "count": 0,
+    "sum": 0,
+    "min": None,
+    "max": None,
+    "last": None
+}
+
+def record_finger_press(finger, timestamp):
+    """Registra el timestamp cuando se presiona un dedo"""
+    finger_timestamps[finger] = timestamp
+
+def calculate_latency(finger):
+    """Calcula la latencia cuando se recibe feedback"""
+    if finger not in finger_timestamps:
+        return None
+    
+    send_time = finger_timestamps[finger]
+    receive_time = time.ticks_ms()
+    latency = time.ticks_diff(receive_time, send_time)
+    
+    # Actualizar estadísticas
+    latency_stats["count"] += 1
+    latency_stats["sum"] += latency
+    latency_stats["last"] = latency
+    
+    if latency_stats["min"] is None or latency < latency_stats["min"]:
+        latency_stats["min"] = latency
+    
+    if latency_stats["max"] is None or latency > latency_stats["max"]:
+        latency_stats["max"] = latency
+    
+    # Limpiar el timestamp usado
+    del finger_timestamps[finger]
+    
+    return latency
+
+def print_latency_stats(reset=False):
+    """Imprime estadísticas de latencia y opcionalmente las reinicia"""
+    if latency_stats["count"] > 0:
+        avg = latency_stats["sum"] / latency_stats["count"]
+        print(f"\n=== ESTADÍSTICAS DE LATENCIA ===")
+        print(f"Última:   {latency_stats['last']} ms")
+        print(f"Promedio: {avg:.2f} ms")
+        print(f"Mínima:   {latency_stats['min']} ms")
+        print(f"Máxima:   {latency_stats['max']} ms")
+        print(f"Muestras: {latency_stats['count']}")
+        print("================================\n")
+        
+        # Reiniciar estadísticas si se solicita
+        if reset:
+            latency_stats["count"] = 0
+            latency_stats["sum"] = 0
+            latency_stats["min"] = None
+            latency_stats["max"] = None
+            latency_stats["last"] = None
 
 #===============================
 # Utilidades de lectura de sensores
@@ -143,25 +208,50 @@ def on_mqtt_message(topic, msg):
     """Callback para mensajes entrantes."""
     try:
         data = ujson.loads(msg)
+        
+        # Manejar mensaje vacío (optimización de payload)
+        if "__empty" in data:
+            # Apagar todos los LEDs y motores
+            for i in range(5):
+                turn_off_led(leds[i])
+                motors[i].duty_u16(0)
+            return
+        
         for finger, info in data.items():
-            pressed = info.get("pressed", False)
-            color = info.get("color", "#000000")
-            freq = info.get("freq", 0)
+            # Manejar si info es un diccionario o un valor simple
+            if isinstance(info, dict):
+                pressed = info.get("pressed", False)
+                color = info.get("color", "#000000")
+                freq = info.get("freq", 0)
+            else:
+                # Si info es un booleano o int directamente
+                pressed = bool(info)
+                color = "#000000"
+                freq = 0
+            
             led_index = finger_to_led_index(finger)
-            r,g,b = hex_to_bin_rgb(color)
 
-            if not isinstance(freq,int):
+            # MEDICIÓN DE LATENCIA
+            if pressed:
+                latency = calculate_latency(finger)
+                if latency is not None:
+                    print(f"[LATENCIA] {finger}: {latency} ms")
+            
+            r, g, b = hex_to_bin_rgb(color)
+
+            if not isinstance(freq, int):
                 freq = 0
 
             if led_index is not None and 0 <= led_index < len(leds):
                 if pressed:
-                    set_led_color(leds[led_index], r,g,b)
+                    set_led_color(leds[led_index], r, g, b)
                     motors[led_index].duty_u16(freq)
                 else:
                     turn_off_led(leds[led_index])
                     motors[led_index].duty_u16(0)
+                    
     except Exception as e:
-        print("Error en on_mqtt_message:", e)
+        print(f"[ERROR] on_mqtt_message: {e}")
 
 def mqtt_connect():
     """Conecta al broker MQTT con reintentos"""
@@ -175,7 +265,7 @@ def mqtt_connect():
                            keepalive=60, ssl=False)
             c.set_callback(on_mqtt_message)
             c.connect()
-            c.subscribe(TOPIC_FEEDBACK)
+            c.subscribe(TOPIC_FEEDBACK, qos=0)  # QoS 0 = más rápido
             print("[MQTT] Conectado exitosamente.")
             return c
         except Exception as e:
@@ -184,23 +274,33 @@ def mqtt_connect():
     print(" [MQTT] Conexión fallida después de varios intentos.")
     return None
 
-
 def publish_states_if_changed(client, pressed, last_pressed):
-    """Publica el estado de los dedos si hubo cambios."""
-    if not client or pressed == last_pressed:
+    """Publica el estado de los dedos si hubo cambios y registra timestamps."""
+    if not client:
+        return last_pressed
+    
+    # Publicar solo si hay cambios reales
+    if pressed == last_pressed:
         return last_pressed
 
+    timestamp = time.ticks_ms()
+    finger_names = ["pinky", "ring", "middle", "index", "thumb"]
+    
     payload = {
         "pinky":  pressed[0],
         "ring":   pressed[1],
         "middle": pressed[2],
         "index":  pressed[3],
         "thumb":  pressed[4],
-        "timestamp": time.ticks_ms()
     }
+    
+    # *** REGISTRAR TIMESTAMPS PARA MEDICIÓN DE LATENCIA ***
+    for i, finger in enumerate(finger_names):
+        if pressed[i] and not last_pressed[i]:  # Detectar flanco de subida
+            record_finger_press(finger, timestamp)
+    
     try:
-        client.publish(TOPIC_ESTADO, ujson.dumps(payload))
-        print(f"[MQTT] Estado publicado: {payload}")
+        client.publish(TOPIC_ESTADO, ujson.dumps(payload), qos=0)
     except Exception as e:
         print(f"[MQTT] Error publicando: {e}")
 
@@ -287,23 +387,33 @@ def main():
     client = mqtt_connect()
 
     last_pressed = [False]*5
-    LOOP_DT, PUB_MS = 0.02, 100
+    LOOP_DT, PUB_MS = 0.001, 40
+    
     t_pub = time.ticks_ms()
+    t_stats = time.ticks_ms()
+    STATS_INTERVAL = 10000  # Imprimir estadísticas cada 10 segundos
 
     if client:
         client.set_callback(on_mqtt_message)
 
     print("[MAIN] Sistema en ejecución.")
+    print(f"[CONFIG] Loop: {int(LOOP_DT*1000)}ms | Publicación: {PUB_MS}ms")
 
     # --- Bucle principal ---
     while True:
-        
         pressed = read_sensors()
+        
+        # Publicar si ha pasado el intervalo
         if time.ticks_diff(time.ticks_ms(), t_pub) >= PUB_MS:
             last_pressed = publish_states_if_changed(client, pressed, last_pressed)
             t_pub = time.ticks_ms()
 
-   
+        # Imprimir estadísticas periódicamente
+        if time.ticks_diff(time.ticks_ms(), t_stats) >= STATS_INTERVAL:
+            print_latency_stats(reset=True)
+            t_stats = time.ticks_ms()
+        
+        # Procesar mensajes MQTT (CRÍTICO: antes del sleep para mínima latencia)
         if client:
             try:
                 client.check_msg()
@@ -312,6 +422,7 @@ def main():
                 client = mqtt_connect()  # reintento si falla
 
         time.sleep(LOOP_DT)
+
 # ================================================================
 # ENTRY POINT
 # ================================================================
